@@ -1,10 +1,10 @@
 import React from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { ThemeProvider, createTheme, CssBaseline, Box, CircularProgress } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UserDataProvider, useUserData } from './contexts/UserDataContext';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { UserProfileForm } from './components/UserProfileForm';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { UserProfile } from './types';
 
 const theme = createTheme({
@@ -28,14 +28,10 @@ const theme = createTheme({
   shape: { borderRadius: 12 },
   components: {
     MuiPaper: {
-      styleOverrides: {
-        root: { backgroundImage: 'none' },
-      },
+      styleOverrides: { root: { backgroundImage: 'none' } },
     },
     MuiChip: {
-      styleOverrides: {
-        root: { fontFamily: '"DM Sans", sans-serif', fontWeight: 600 },
-      },
+      styleOverrides: { root: { fontFamily: '"DM Sans", sans-serif', fontWeight: 600 } },
     },
     MuiButton: {
       styleOverrides: {
@@ -51,14 +47,36 @@ const theme = createTheme({
 });
 
 const AppContent: React.FC = () => {
-  const { currentUser, loading } = useAuth();
-  const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
+  const { currentUser, loading: authLoading } = useAuth();
+  const { profile, setProfile, dataLoading } = useUserData();
 
-  if (loading) return null;
+  if (authLoading || (currentUser && dataLoading)) {
+    return (
+      <Box sx={{ height: '100vh', bgcolor: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ width: 64, height: 64 }}>
+          <img src="/logo.svg" alt="GymClaude" style={{ width: '100%', height: '100%' }} />
+        </Box>
+        <CircularProgress sx={{ color: '#FF7A00' }} size={28} />
+      </Box>
+    );
+  }
+
   if (!currentUser) return <Login />;
-  if (!userProfile) return <UserProfileForm onComplete={(profile) => setUserProfile(profile)} />;
 
-  return <Dashboard userProfile={userProfile} onResetProfile={() => setUserProfile(null)} />;
+  if (!profile) {
+    return (
+      <UserProfileForm
+        onComplete={(p: UserProfile) => setProfile(p)}
+      />
+    );
+  }
+
+  return (
+    <Dashboard
+      userProfile={profile}
+      onResetProfile={() => setProfile(null)}
+    />
+  );
 };
 
 function App() {
@@ -66,7 +84,9 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <AppContent />
+        <UserDataProvider>
+          <AppContent />
+        </UserDataProvider>
       </AuthProvider>
     </ThemeProvider>
   );

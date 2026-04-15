@@ -12,11 +12,11 @@ import {
   LocalFireDepartment, Timer
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserData } from '../contexts/UserDataContext';
 import { WorkoutGenerator } from '../utils/workoutGenerator';
 import { UserProfile, Exercise, Workout, SetLog, ExerciseSession } from '../types';
 import { getExerciseImage, getExerciseThumbnail } from '../utils/exerciseImages';
 import { WorkoutEditor } from './WorkoutEditor';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 
 // ─── Cores ────────────────────────────────────────────────────────────────────
 const C = {
@@ -45,8 +45,8 @@ const goalLabel: Record<UserProfile['goal'], string> = {
 
 // ─── Registro de peso por série ───────────────────────────────────────────────
 const WeightLogger: React.FC<{ exercise: Exercise }> = ({ exercise }) => {
-  const storageKey = `log_${exercise.id}`;
-  const [history, setHistory] = useLocalStorage<ExerciseSession[]>(storageKey, []);
+  const { exerciseLogs, setExerciseLog } = useUserData();
+  const history: ExerciseSession[] = exerciseLogs[exercise.id] ?? [];
 
   const today = new Date().toISOString().split('T')[0];
   const todaySession = history.find(s => s.date === today);
@@ -67,7 +67,7 @@ const WeightLogger: React.FC<{ exercise: Exercise }> = ({ exercise }) => {
       const updated = prev.map((s, idx) => idx === i ? { ...s, completed: !s.completed } : s);
       const session: ExerciseSession = { exerciseId: exercise.id, exerciseName: exercise.name, date: today, sets: updated };
       const filtered = history.filter((s: ExerciseSession) => s.date !== today);
-      setHistory([...filtered, session]);
+      setExerciseLog(exercise.id, [...filtered, session]);
       return updated;
     });
   };
@@ -267,9 +267,14 @@ const workoutGradients = [
 // ─── Dashboard principal ──────────────────────────────────────────────────────
 export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   const { currentUser, logout } = useAuth();
+  const { workouts: savedWorkouts, setWorkouts: saveWorkouts, exerciseLogs } = useUserData();
 
   const generated = useMemo(() => WorkoutGenerator.getWorkoutPlan(userProfile), [userProfile]);
-  const [workouts, setWorkouts] = useLocalStorage<Workout[]>(`workouts_${currentUser?.uid}`, generated);
+  const workouts: Workout[] = savedWorkouts.length > 0 ? savedWorkouts : generated;
+
+  const setWorkouts = async (w: Workout[]) => {
+    await saveWorkouts(w);
+  };
 
   const [activeTab, setActiveTab] = useState<'treinos' | 'atividades' | 'explorar' | 'exercicios' | 'corpo'>('treinos');
   const [view, setView] = useState<'home' | 'workout_list'>('home');
@@ -294,19 +299,24 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
     setWorkouts(workouts.map((w: Workout, i: number) => i === dayIndex ? { ...w, exercises } : w));
   };
 
+  // Inicializa plano no Firestore se ainda não foi salvo
+  React.useEffect(() => {
+    if (savedWorkouts.length === 0 && generated.length > 0) {
+      saveWorkouts(generated);
+    }
+  }, [generated]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Calcula progresso do treino ativo hoje
   const todayProgress = useMemo(() => {
     const exercises = currentWorkout?.exercises ?? [];
     if (exercises.length === 0) return 0;
     const todayStr = new Date().toISOString().split('T')[0];
     const completed = exercises.filter(ex => {
-      try {
-        const history = JSON.parse(localStorage.getItem(`log_${ex.id}`) || '[]') as ExerciseSession[];
-        return history.some(s => s.date === todayStr && s.sets.some(st => st.completed));
-      } catch { return false; }
+      const history = exerciseLogs[ex.id] ?? [];
+      return history.some(s => s.date === todayStr && s.sets.some(st => st.completed));
     }).length;
     return Math.round((completed / exercises.length) * 100);
-  }, [currentWorkout]);
+  }, [currentWorkout, exerciseLogs]);
 
   const maisOpcoes = [
     { icon: <History sx={{ fontSize: 20, color: C.orange }} />, label: 'Histórico de treinos' },

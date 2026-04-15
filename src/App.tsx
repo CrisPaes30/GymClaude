@@ -52,7 +52,7 @@ const workoutFields: (keyof UserProfile)[] = ['trainingDays', 'goal', 'experienc
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
-  const { profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts, dataLoading } = useUserData();
+  const { profile, setProfile, workouts, saveProfileAndWorkouts, dataLoading } = useUserData();
   const [editingProfile, setEditingProfile] = React.useState(false);
 
   if (authLoading || (currentUser && dataLoading)) {

@@ -52,7 +52,7 @@ const workoutFields: (keyof UserProfile)[] = ['trainingDays', 'goal', 'experienc
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
-  const { profile, setProfile, workouts, setWorkouts, dataLoading } = useUserData();
+  const { profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts, dataLoading } = useUserData();
   const [editingProfile, setEditingProfile] = React.useState(false);
 
   if (authLoading || (currentUser && dataLoading)) {
@@ -74,11 +74,12 @@ const AppContent: React.FC = () => {
     if (planChanged) {
       const newGenerated = WorkoutGenerator.getWorkoutPlan(newProfile);
       const custom = workouts.filter((w: Workout) => w.id.startsWith('custom-'));
-      // Sem await: atualiza o estado local imediatamente e escreve no Firestore em background
-      setWorkouts([...newGenerated, ...custom]);
+      // Atualiza perfil + treinos juntos em uma única renderização
+      saveProfileAndWorkouts(newProfile, [...newGenerated, ...custom]);
+    } else {
+      setProfile(newProfile);
     }
 
-    setProfile(newProfile);
     setEditingProfile(false);
   };
 

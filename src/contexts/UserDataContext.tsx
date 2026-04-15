@@ -6,11 +6,12 @@ import { useAuth } from './AuthContext';
 
 interface UserDataContextType {
   profile: UserProfile | null;
-  setProfile: (p: UserProfile | null) => Promise<void>;
+  setProfile: (p: UserProfile | null) => void;
   workouts: Workout[];
-  setWorkouts: (w: Workout[]) => Promise<void>;
+  setWorkouts: (w: Workout[]) => void;
+  saveProfileAndWorkouts: (p: UserProfile, w: Workout[]) => void;
   exerciseLogs: Record<string, ExerciseSession[]>;
-  setExerciseLog: (exerciseId: string, sessions: ExerciseSession[]) => Promise<void>;
+  setExerciseLog: (exerciseId: string, sessions: ExerciseSession[]) => void;
   dataLoading: boolean;
 }
 
@@ -41,49 +42,35 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
       const uid = currentUser.uid;
 
       try {
-        // Perfil
         const profileSnap = await getDoc(doc(db, 'users', uid));
         let loadedProfile: UserProfile | null = null;
         if (profileSnap.exists() && profileSnap.data().profile) {
           loadedProfile = profileSnap.data().profile as UserProfile;
         } else {
-          // Migração: tenta ler do localStorage
           const lsProfile = localStorage.getItem('userProfile');
-          if (lsProfile) {
-            loadedProfile = JSON.parse(lsProfile);
-          }
+          if (lsProfile) loadedProfile = JSON.parse(lsProfile);
         }
         setProfileState(loadedProfile);
 
-        // Treinos
         const workoutsSnap = await getDoc(doc(db, 'users', uid, 'meta', 'workouts'));
         let loadedWorkouts: Workout[] = [];
         if (workoutsSnap.exists() && workoutsSnap.data().list) {
           loadedWorkouts = workoutsSnap.data().list as Workout[];
         } else {
-          // Migração: tenta ler do localStorage
           const lsWorkouts = localStorage.getItem(`workouts_${uid}`);
-          if (lsWorkouts) {
-            loadedWorkouts = JSON.parse(lsWorkouts);
-          }
+          if (lsWorkouts) loadedWorkouts = JSON.parse(lsWorkouts);
         }
         setWorkoutsState(loadedWorkouts);
 
-        // Logs de exercícios
         const logsSnap = await getDocs(collection(db, 'users', uid, 'logs'));
         const logsMap: Record<string, ExerciseSession[]> = {};
-        logsSnap.forEach(d => {
-          logsMap[d.id] = d.data().sessions as ExerciseSession[];
-        });
+        logsSnap.forEach(d => { logsMap[d.id] = d.data().sessions as ExerciseSession[]; });
 
-        // Migração de logs do localStorage
         if (logsSnap.empty) {
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith('log_')) {
-              const exerciseId = key.replace('log_', '');
-              try {
-                logsMap[exerciseId] = JSON.parse(localStorage.getItem(key) || '[]');
-              } catch { /* ignora */ }
+              try { logsMap[key.replace('log_', '')] = JSON.parse(localStorage.getItem(key) || '[]'); }
+              catch { /* ignora */ }
             }
           });
         }
@@ -99,27 +86,48 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     loadData();
   }, [currentUser]);
 
-  // ── Setters com escrita no Firestore ────────────────────────────────────────
-  const setProfile = useCallback(async (p: UserProfile | null) => {
+  // ── Escreve no Firestore em background (sem bloquear UI) ─────────────────────
+  const persistProfile = useCallback((p: UserProfile | null, uid: string) => {
+    setDoc(doc(db, 'users', uid), { profile: p }, { merge: true })
+      .catch(err => console.error('Erro ao salvar perfil:', err));
+  }, []);
+
+  const persistWorkouts = useCallback((w: Workout[], uid: string) => {
+    setDoc(doc(db, 'users', uid, 'meta', 'workouts'), { list: w })
+      .catch(err => console.error('Erro ao salvar treinos:', err));
+  }, []);
+
+  // ── Setters públicos ─────────────────────────────────────────────────────────
+  const setProfile = useCallback((p: UserProfile | null) => {
     setProfileState(p);
-    if (!currentUser) return;
-    await setDoc(doc(db, 'users', currentUser.uid), { profile: p }, { merge: true });
-  }, [currentUser]);
+    if (currentUser) persistProfile(p, currentUser.uid);
+  }, [currentUser, persistProfile]);
 
-  const setWorkouts = useCallback(async (w: Workout[]) => {
+  const setWorkouts = useCallback((w: Workout[]) => {
     setWorkoutsState(w);
-    if (!currentUser) return;
-    await setDoc(doc(db, 'users', currentUser.uid, 'meta', 'workouts'), { list: w });
-  }, [currentUser]);
+    if (currentUser) persistWorkouts(w, currentUser.uid);
+  }, [currentUser, persistWorkouts]);
 
-  const setExerciseLog = useCallback(async (exerciseId: string, sessions: ExerciseSession[]) => {
+  // ── Atualiza perfil + treinos em uma única renderização ──────────────────────
+  const saveProfileAndWorkouts = useCallback((p: UserProfile, w: Workout[]) => {
+    setProfileState(p);
+    setWorkoutsState(w);
+    if (currentUser) {
+      persistProfile(p, currentUser.uid);
+      persistWorkouts(w, currentUser.uid);
+    }
+  }, [currentUser, persistProfile, persistWorkouts]);
+
+  const setExerciseLog = useCallback((exerciseId: string, sessions: ExerciseSession[]) => {
     setExerciseLogsState(prev => ({ ...prev, [exerciseId]: sessions }));
-    if (!currentUser) return;
-    await setDoc(doc(db, 'users', currentUser.uid, 'logs', exerciseId), { sessions });
+    if (currentUser) {
+      setDoc(doc(db, 'users', currentUser.uid, 'logs', exerciseId), { sessions })
+        .catch(err => console.error('Erro ao salvar log:', err));
+    }
   }, [currentUser]);
 
   return (
-    <UserDataContext.Provider value={{ profile, setProfile, workouts, setWorkouts, exerciseLogs, setExerciseLog, dataLoading }}>
+    <UserDataContext.Provider value={{ profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts, exerciseLogs, setExerciseLog, dataLoading }}>
       {children}
     </UserDataContext.Provider>
   );

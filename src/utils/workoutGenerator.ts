@@ -65,6 +65,13 @@ export class WorkoutGenerator {
           ['ombros', 'abdômen']
         ];
       case 5:
+        return [
+          ['peitoral'],
+          ['costas'],
+          ['pernas'],
+          ['ombros'],
+          ['braços'],
+        ];
       case 6:
         return [
           ['peitoral'],
@@ -72,7 +79,7 @@ export class WorkoutGenerator {
           ['pernas'],
           ['ombros'],
           ['braços'],
-          ['abdômen']
+          ['abdômen'],
         ];
       default:
         return [['peitoral', 'costas', 'pernas']];

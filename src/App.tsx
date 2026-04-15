@@ -5,7 +5,8 @@ import { UserDataProvider, useUserData } from './contexts/UserDataContext';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { UserProfileForm } from './components/UserProfileForm';
-import { UserProfile } from './types';
+import { UserProfile, Workout } from './types';
+import { WorkoutGenerator } from './utils/workoutGenerator';
 
 const theme = createTheme({
   palette: {
@@ -46,9 +47,12 @@ const theme = createTheme({
   },
 });
 
+// Campos que, se mudarem, exigem regenerar o plano de treino
+const workoutFields: (keyof UserProfile)[] = ['trainingDays', 'goal', 'experience', 'trainingDuration'];
+
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
-  const { profile, setProfile, dataLoading } = useUserData();
+  const { profile, setProfile, workouts, setWorkouts, dataLoading } = useUserData();
   const [editingProfile, setEditingProfile] = React.useState(false);
 
   if (authLoading || (currentUser && dataLoading)) {
@@ -64,11 +68,27 @@ const AppContent: React.FC = () => {
 
   if (!currentUser) return <Login />;
 
+  const handleProfileSave = async (newProfile: UserProfile) => {
+    const isFirstSetup = !profile;
+    const planChanged = isFirstSetup || workoutFields.some(f => newProfile[f] !== profile![f]);
+
+    await setProfile(newProfile);
+
+    if (planChanged) {
+      const generated = WorkoutGenerator.getWorkoutPlan(newProfile);
+      // Preserva treinos personalizados do usuário
+      const custom = workouts.filter((w: Workout) => w.id.startsWith('custom-'));
+      await setWorkouts([...generated, ...custom]);
+    }
+
+    setEditingProfile(false);
+  };
+
   if (!profile || editingProfile) {
     return (
       <UserProfileForm
         initialProfile={profile ?? undefined}
-        onComplete={(p: UserProfile) => { setProfile(p); setEditingProfile(false); }}
+        onComplete={handleProfileSave}
         onCancel={profile ? () => setEditingProfile(false) : undefined}
       />
     );

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UserProfile, Workout, ExerciseSession } from '../types';
+import { UserProfile, Workout, ExerciseSession, WorkoutActivity, ActiveWorkout } from '../types';
 import { useAuth } from './AuthContext';
 
 interface UserDataContextType {
@@ -13,6 +13,13 @@ interface UserDataContextType {
   exerciseLogs: Record<string, ExerciseSession[]>;
   setExerciseLog: (exerciseId: string, sessions: ExerciseSession[]) => void;
   dataLoading: boolean;
+  workoutActivities: WorkoutActivity[];
+  activeWorkout: ActiveWorkout | null;
+  startWorkout: (workout: Workout) => void;
+  finishWorkout: () => void;
+  cancelWorkout: () => void;
+  addActivity: (activity: WorkoutActivity) => void;
+  removeActivity: (id: string) => void;
 }
 
 const UserDataContext = createContext<UserDataContextType>({} as UserDataContextType);
@@ -26,6 +33,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
   const [workouts, setWorkoutsState] = useState<Workout[]>([]);
   const [exerciseLogs, setExerciseLogsState] = useState<Record<string, ExerciseSession[]>>({});
   const [dataLoading, setDataLoading] = useState(true);
+  const [workoutActivities, setWorkoutActivitiesState] = useState<WorkoutActivity[]>([]);
+  const [activeWorkout, setActiveWorkoutState] = useState<ActiveWorkout | null>(null);
 
   // ── Carrega dados do Firestore ao logar ─────────────────────────────────────
   useEffect(() => {
@@ -75,6 +84,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
           });
         }
         setExerciseLogsState(logsMap);
+
+        const activitiesSnap = await getDoc(doc(db, 'users', uid, 'meta', 'activities'));
+        if (activitiesSnap.exists() && activitiesSnap.data().list) {
+          setWorkoutActivitiesState(activitiesSnap.data().list as WorkoutActivity[]);
+        }
 
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -126,8 +140,77 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser]);
 
+  const startWorkout = useCallback((workout: { id: string; name: string; muscleGroups: string[]; exercises: { id: string }[] }) => {
+    const active: ActiveWorkout = {
+      id: `${workout.id}_${Date.now()}`,
+      workoutId: workout.id,
+      workoutName: workout.name,
+      muscleGroups: workout.muscleGroups,
+      startTime: new Date().toISOString(),
+      exerciseIds: workout.exercises.map(e => e.id),
+    };
+    setActiveWorkoutState(active);
+  }, []);
+
+  const finishWorkout = useCallback(() => {
+    if (!activeWorkout) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const completed = activeWorkout.exerciseIds.filter(id => {
+      const history = exerciseLogs[id] ?? [];
+      return history.some(s => s.date === todayStr && s.sets.some(st => st.completed));
+    }).length;
+
+    const activity: WorkoutActivity = {
+      id: activeWorkout.id,
+      workoutId: activeWorkout.workoutId,
+      workoutName: activeWorkout.workoutName,
+      muscleGroups: activeWorkout.muscleGroups,
+      startTime: activeWorkout.startTime,
+      endTime: new Date().toISOString(),
+      duration: Math.max(1, Math.round((Date.now() - new Date(activeWorkout.startTime).getTime()) / 60000)),
+      exercisesCompleted: completed,
+      totalExercises: activeWorkout.exerciseIds.length,
+    };
+
+    const updated = [activity, ...workoutActivities];
+    setWorkoutActivitiesState(updated);
+    setActiveWorkoutState(null);
+
+    if (currentUser) {
+      setDoc(doc(db, 'users', currentUser.uid, 'meta', 'activities'), { list: updated })
+        .catch(err => console.error('Erro ao salvar atividade:', err));
+    }
+  }, [activeWorkout, workoutActivities, exerciseLogs, currentUser]);
+
+  const cancelWorkout = useCallback(() => {
+    setActiveWorkoutState(null);
+  }, []);
+
+  const addActivity = useCallback((activity: WorkoutActivity) => {
+    const updated = [activity, ...workoutActivities];
+    setWorkoutActivitiesState(updated);
+    if (currentUser) {
+      setDoc(doc(db, 'users', currentUser.uid, 'meta', 'activities'), { list: updated })
+        .catch(err => console.error('Erro ao salvar atividade:', err));
+    }
+  }, [workoutActivities, currentUser]);
+
+  const removeActivity = useCallback((id: string) => {
+    const updated = workoutActivities.filter(a => a.id !== id);
+    setWorkoutActivitiesState(updated);
+    if (currentUser) {
+      setDoc(doc(db, 'users', currentUser.uid, 'meta', 'activities'), { list: updated })
+        .catch(err => console.error('Erro ao remover atividade:', err));
+    }
+  }, [workoutActivities, currentUser]);
+
   return (
-    <UserDataContext.Provider value={{ profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts, exerciseLogs, setExerciseLog, dataLoading }}>
+    <UserDataContext.Provider value={{
+      profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts,
+      exerciseLogs, setExerciseLog, dataLoading,
+      workoutActivities, activeWorkout, startWorkout, finishWorkout, cancelWorkout,
+      addActivity, removeActivity,
+    }}>
       {children}
     </UserDataContext.Provider>
   );

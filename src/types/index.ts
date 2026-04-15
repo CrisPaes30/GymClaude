@@ -59,3 +59,24 @@ export interface ExerciseSession {
   date: string;     // ISO date string
   sets: SetLog[];
 }
+
+export interface WorkoutActivity {
+  id: string;
+  workoutId: string;
+  workoutName: string;
+  muscleGroups: string[];
+  startTime: string;  // ISO string
+  endTime: string;    // ISO string
+  duration: number;   // minutos
+  exercisesCompleted: number;
+  totalExercises: number;
+}
+
+export interface ActiveWorkout {
+  id: string;
+  workoutId: string;
+  workoutName: string;
+  muscleGroups: string[];
+  startTime: string;  // ISO string
+  exerciseIds: string[];
+}

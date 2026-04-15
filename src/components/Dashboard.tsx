@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box, Typography, Avatar, IconButton, InputBase,
   Chip, Dialog, DialogContent, Slide, TextField
@@ -18,6 +18,7 @@ import { UserProfile, Exercise, Workout, SetLog, ExerciseSession } from '../type
 import { getExerciseImage, getExerciseThumbnail } from '../utils/exerciseImages';
 import { WorkoutEditor } from './WorkoutEditor';
 import { CreateWorkoutDialog } from './CreateWorkoutDialog';
+import { ActivitiesTab } from './ActivitiesTab';
 
 // ─── Cores ────────────────────────────────────────────────────────────────────
 const C = {
@@ -271,7 +272,7 @@ const workoutGradients = [
 // ─── Dashboard principal ──────────────────────────────────────────────────────
 export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   const { currentUser, logout } = useAuth();
-  const { workouts: savedWorkouts, setWorkouts: saveWorkouts, exerciseLogs } = useUserData();
+  const { workouts: savedWorkouts, setWorkouts: saveWorkouts, exerciseLogs, activeWorkout, startWorkout, finishWorkout, cancelWorkout } = useUserData();
 
   const generated = useMemo(() => WorkoutGenerator.getWorkoutPlan(userProfile), [userProfile]);
   const workouts: Workout[] = savedWorkouts.length > 0 ? savedWorkouts : generated;
@@ -292,6 +293,37 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   const currentWorkout = workouts[activeDay];
 
   const firstName = (currentUser?.displayName ?? currentUser?.email?.split('@')[0] ?? 'Atleta').split(' ')[0];
+
+  // ── Timer do treino ativo ─────────────────────────────────────────────────
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  useEffect(() => {
+    if (!activeWorkout) { setElapsedSeconds(0); return; }
+    const update = () => setElapsedSeconds(Math.floor((Date.now() - new Date(activeWorkout.startTime).getTime()) / 1000));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [activeWorkout]);
+
+  const formatElapsed = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  };
+
+  const isCurrentWorkoutActive = activeWorkout?.workoutId === currentWorkout?.id;
+
+  const handleStartWorkout = () => {
+    if (!currentWorkout) return;
+    startWorkout(currentWorkout);
+  };
+
+  const handleFinishWorkout = () => {
+    finishWorkout();
+    setActiveTab('atividades');
+    setView('home');
+  };
 
   const filteredExercises = useMemo(() => {
     if (!search.trim()) return currentWorkout?.exercises ?? [];
@@ -452,11 +484,52 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
       )}
 
       {/* Lista */}
-      <Box sx={{ mx: 2.5, mb: 3, bgcolor: C.card, borderRadius: 3, border: `1px solid ${C.cardBorder}`, overflow: 'hidden', flex: 1 }}>
+      <Box sx={{ mx: 2.5, bgcolor: C.card, borderRadius: 3, border: `1px solid ${C.cardBorder}`, overflow: 'hidden', flex: 1, overflowY: 'auto', '::-webkit-scrollbar': { display: 'none' } }}>
         {filteredExercises.length === 0
           ? <Box sx={{ py: 5, textAlign: 'center' }}><Typography sx={{ color: C.textSec, fontSize: 14 }}>Nenhum exercício encontrado</Typography></Box>
           : filteredExercises.map(ex => <ExerciseRow key={ex.id} exercise={ex} onClick={() => setSelectedExercise(ex)} />)
         }
+      </Box>
+
+      {/* Botão Iniciar / Finalizar Treino */}
+      <Box sx={{ px: 2.5, pt: 2, pb: 2.5, flexShrink: 0 }}>
+        {isCurrentWorkoutActive ? (
+          <Box>
+            {/* Banner timer */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, px: 2, py: 1.2, borderRadius: 2.5, bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}` }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: C.orange, animation: 'pulse 1.5s infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } } }} />
+                <Typography sx={{ fontSize: 12, color: C.orange, fontWeight: 600 }}>Em andamento</Typography>
+              </Box>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: C.orange, fontFamily: 'monospace', letterSpacing: 1 }}>
+                {formatElapsed(elapsedSeconds)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <Box
+                onClick={cancelWorkout}
+                sx={{ flex: 1, py: 1.5, borderRadius: 3, border: `1.5px solid rgba(255,68,68,0.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', '&:hover': { bgcolor: 'rgba(255,68,68,0.08)' }, transition: 'background 0.15s' }}
+              >
+                <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#FF6666' }}>Cancelar</Typography>
+              </Box>
+              <Box
+                onClick={handleFinishWorkout}
+                sx={{ flex: 2, py: 1.5, borderRadius: 3, bgcolor: C.orange, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer', '&:hover': { bgcolor: C.orangeLight }, transition: 'background 0.15s', boxShadow: `0 4px 20px rgba(255,122,0,0.4)` }}
+              >
+                <Check sx={{ fontSize: 18, color: '#fff' }} />
+                <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Finalizar Treino</Typography>
+              </Box>
+            </Box>
+          </Box>
+        ) : (
+          <Box
+            onClick={handleStartWorkout}
+            sx={{ py: 1.8, borderRadius: 3, bgcolor: C.orange, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { bgcolor: C.orangeLight }, transition: 'background 0.15s', boxShadow: `0 4px 20px rgba(255,122,0,0.35)` }}
+          >
+            <PlayArrow sx={{ fontSize: 22, color: '#fff' }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: 0.3 }}>Iniciar Treino</Typography>
+          </Box>
+        )}
       </Box>
     </Box>
   );
@@ -479,6 +552,21 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
           <Avatar src={currentUser?.photoURL ?? undefined} sx={{ width: 44, height: 44, border: `2.5px solid ${C.orange}` }} />
         </Box>
       </Box>
+
+      {/* Banner treino ativo */}
+      {activeWorkout && (
+        <Box
+          onClick={() => { const idx = workouts.findIndex(w => w.id === activeWorkout.workoutId); if (idx >= 0) { setActiveDay(idx); setView('workout_list'); } }}
+          sx={{ mx: 2.5, mb: 2, px: 2, py: 1.5, borderRadius: 2.5, bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}`, display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}
+        >
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: C.orange, flexShrink: 0, animation: 'pulse 1.5s infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } } }} />
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: C.orange }}>Treino em andamento</Typography>
+            <Typography sx={{ fontSize: 11, color: C.textSec }}>{activeWorkout.workoutName} · {formatElapsed(elapsedSeconds)}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: 12, color: C.orange, fontWeight: 600 }}>Continuar →</Typography>
+        </Box>
+      )}
 
       {/* Faixa de datas */}
       <DateStrip />
@@ -627,7 +715,7 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
       {activeTab === 'treinos' ? (
         view === 'home' ? <HomeView /> : <WorkoutListView />
       ) : activeTab === 'atividades' ? (
-        <PlaceholderTab title="Atividades" />
+        <ActivitiesTab />
       ) : activeTab === 'explorar' ? (
         <PlaceholderTab title="Explorar" />
       ) : activeTab === 'exercicios' ? (

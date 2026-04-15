@@ -9,7 +9,7 @@ import {
   Edit, Add, Check, EmojiEvents, BarChart,
   Explore, Person, History, NotificationsNone,
   StarOutlined, Share, ChevronRight, MoreVert,
-  LocalFireDepartment, Timer
+  LocalFireDepartment, Timer, RestartAlt, DeleteForever, AddCircleOutlined
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/UserDataContext';
@@ -17,6 +17,7 @@ import { WorkoutGenerator } from '../utils/workoutGenerator';
 import { UserProfile, Exercise, Workout, SetLog, ExerciseSession } from '../types';
 import { getExerciseImage, getExerciseThumbnail } from '../utils/exerciseImages';
 import { WorkoutEditor } from './WorkoutEditor';
+import { CreateWorkoutDialog } from './CreateWorkoutDialog';
 
 // ─── Cores ────────────────────────────────────────────────────────────────────
 const C = {
@@ -285,6 +286,8 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   const [search, setSearch] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [creatingWorkout, setCreatingWorkout] = useState(false);
 
   const currentWorkout = workouts[activeDay];
 
@@ -300,6 +303,24 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
 
   const saveWorkoutDay = (dayIndex: number, exercises: Exercise[]) => {
     setWorkouts(workouts.map((w: Workout, i: number) => i === dayIndex ? { ...w, exercises } : w));
+  };
+
+  const resetWorkoutDay = () => {
+    const original = generated[activeDay];
+    if (!original) return;
+    setWorkouts(workouts.map((w: Workout, i: number) => i === activeDay ? { ...w, exercises: original.exercises } : w));
+    setConfirmReset(false);
+  };
+
+  const addCustomWorkout = (workout: Workout) => {
+    setWorkouts([...workouts, workout]);
+  };
+
+  const deleteCustomWorkout = (workoutId: string) => {
+    const updated = workouts.filter((w: Workout) => w.id !== workoutId);
+    setWorkouts(updated);
+    if (activeDay >= updated.length) setActiveDay(Math.max(0, updated.length - 1));
+    setView('home');
   };
 
   // Inicializa plano no Firestore se ainda não foi salvo
@@ -331,26 +352,67 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   ];
 
   // ── View: Lista de exercícios de um treino ────────────────────────────────
+  const isCustomWorkout = currentWorkout?.id?.startsWith('custom-');
+
   const WorkoutListView = () => (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ px: 2.5, pt: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <IconButton onClick={() => { setView('home'); setSearch(''); }} size="small" sx={{ color: C.textSec, bgcolor: '#2C2C2E', '&:hover': { bgcolor: C.orangeDim, color: C.orange } }}>
+        <IconButton onClick={() => { setView('home'); setSearch(''); setConfirmReset(false); }} size="small" sx={{ color: C.textSec, bgcolor: '#2C2C2E', '&:hover': { bgcolor: C.orangeDim, color: C.orange } }}>
           <ArrowBack fontSize="small" />
         </IconButton>
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontSize: 11, color: C.textSec, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>
-            {goalLabel[userProfile.goal]}
+            {isCustomWorkout ? 'Treino Personalizado' : goalLabel[userProfile.goal]}
           </Typography>
           <Typography sx={{ fontSize: 18, fontWeight: 700, color: C.textPri, lineHeight: 1.2 }}>
             {currentWorkout?.name}
           </Typography>
         </Box>
+        {/* Resetar (só para treinos gerados) */}
+        {!isCustomWorkout && (
+          <IconButton
+            size="small"
+            onClick={() => setConfirmReset(true)}
+            sx={{ color: C.textSec, bgcolor: '#2C2C2E', '&:hover': { bgcolor: 'rgba(255,68,68,0.15)', color: '#FF6666' } }}
+          >
+            <RestartAlt fontSize="small" />
+          </IconButton>
+        )}
+        {/* Deletar (só para treinos personalizados) */}
+        {isCustomWorkout && (
+          <IconButton
+            size="small"
+            onClick={() => setConfirmReset(true)}
+            sx={{ color: C.textSec, bgcolor: '#2C2C2E', '&:hover': { bgcolor: 'rgba(255,68,68,0.15)', color: '#FF6666' } }}
+          >
+            <DeleteForever fontSize="small" />
+          </IconButton>
+        )}
         <Box onClick={() => setEditingDay(activeDay)} sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 1.8, py: 1, borderRadius: 2, cursor: 'pointer', bgcolor: '#2C2C2E', '&:hover': { bgcolor: C.orangeDim }, transition: 'background 0.15s' }}>
           <Edit sx={{ fontSize: 15, color: C.textSec }} />
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>Editar</Typography>
         </Box>
       </Box>
+
+      {/* Confirmação de reset / delete */}
+      {confirmReset && (
+        <Box sx={{ mx: 2.5, mb: 2, p: 2, borderRadius: 2.5, bgcolor: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.3)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ fontSize: 13, color: '#FF8888', flex: 1 }}>
+            {isCustomWorkout ? 'Excluir este treino?' : 'Restaurar treino original?'}
+          </Typography>
+          <Box onClick={isCustomWorkout ? () => deleteCustomWorkout(currentWorkout!.id) : resetWorkoutDay}
+            sx={{ px: 2, py: 0.8, borderRadius: 2, cursor: 'pointer', bgcolor: '#FF4444', '&:hover': { bgcolor: '#FF6666' } }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+              {isCustomWorkout ? 'Excluir' : 'Restaurar'}
+            </Typography>
+          </Box>
+          <Box onClick={() => setConfirmReset(false)}
+            sx={{ px: 2, py: 0.8, borderRadius: 2, cursor: 'pointer', bgcolor: '#2C2C2E', '&:hover': { bgcolor: '#3A3A3C' } }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>Cancelar</Typography>
+          </Box>
+        </Box>
+      )}
 
       {/* Seletor de dias */}
       <Box sx={{ px: 2.5, mb: 2 }}>
@@ -460,6 +522,16 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
       <SectionHeader title="Meus treinos" subtitle="Crie suas próprias rotinas de treino" />
       <Box sx={{ px: 2.5, mb: 3 }}>
         <Box sx={{ display: 'flex', gap: 1.5, overflowX: 'auto', '::-webkit-scrollbar': { display: 'none' }, pb: 0.5 }}>
+          {/* Card criar novo treino */}
+          <Box
+            onClick={() => setCreatingWorkout(true)}
+            sx={{ flexShrink: 0, width: 130, height: 130, borderRadius: 3, border: `2px dashed ${C.orangeBorder}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, transition: 'all 0.2s', '&:hover': { border: `2px dashed ${C.orange}`, bgcolor: C.orangeDim } }}
+          >
+            <AddCircleOutlined sx={{ fontSize: 32, color: C.orange }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: C.orange, textAlign: 'center', lineHeight: 1.2 }}>
+              Criar treino
+            </Typography>
+          </Box>
           {workouts.map((w, i) => (
             <Box key={w.id}
               onClick={() => { setActiveDay(i); setView('workout_list'); }}
@@ -599,6 +671,14 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
           currentExercises={workouts[editingDay]?.exercises ?? []}
           onSave={exercises => saveWorkoutDay(editingDay, exercises)}
           onClose={() => setEditingDay(null)}
+        />
+      )}
+
+      {/* Dialog: criar treino personalizado */}
+      {creatingWorkout && (
+        <CreateWorkoutDialog
+          onSave={addCustomWorkout}
+          onClose={() => setCreatingWorkout(false)}
         />
       )}
     </Box>

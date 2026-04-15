@@ -58,8 +58,11 @@ const WeightLogger: React.FC<{ exercise: Exercise }> = ({ exercise }) => {
 
   const lastSession = history.filter(s => s.date !== today).at(-1);
 
-  const updateSet = (i: number, field: 'weight' | 'reps', value: number) => {
-    setSets(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
+  const updateSet = (i: number, field: 'weight' | 'reps', raw: string) => {
+    const value = raw === '' ? 0 : field === 'weight' ? parseFloat(raw) : parseInt(raw, 10);
+    if (!isNaN(value)) {
+      setSets(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
+    }
   };
 
   const toggleComplete = (i: number) => {
@@ -114,13 +117,13 @@ const WeightLogger: React.FC<{ exercise: Exercise }> = ({ exercise }) => {
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: set.completed ? C.orange : C.textSec }}>{i + 1}</Typography>
           </Box>
           <TextField
-            type="number" value={set.weight || ''} onChange={e => updateSet(i, 'weight', Number(e.target.value))}
+            type="number" value={set.weight || ''} onChange={e => updateSet(i, 'weight', e.target.value)}
             placeholder="0" disabled={set.completed} size="small"
             sx={{ flex: 1, '& .MuiInputBase-root': { bgcolor: '#2C2C2E', borderRadius: 2, fontSize: 14 }, '& .MuiInputBase-input': { textAlign: 'center', color: C.textPri, py: 1 }, '& fieldset': { borderColor: C.cardBorder }, '& .MuiInputBase-root:hover fieldset': { borderColor: C.orangeBorder } }}
             slotProps={{ htmlInput: { min: 0, step: 2.5 } }}
           />
           <TextField
-            type="number" value={set.reps || ''} onChange={e => updateSet(i, 'reps', Number(e.target.value))}
+            type="number" value={set.reps || ''} onChange={e => updateSet(i, 'reps', e.target.value)}
             placeholder={exercise.reps?.split('-')[0] ?? '0'} disabled={set.completed} size="small"
             sx={{ flex: 1, '& .MuiInputBase-root': { bgcolor: '#2C2C2E', borderRadius: 2, fontSize: 14 }, '& .MuiInputBase-input': { textAlign: 'center', color: C.textPri, py: 1 }, '& fieldset': { borderColor: C.cardBorder }, '& .MuiInputBase-root:hover fieldset': { borderColor: C.orangeBorder } }}
             slotProps={{ htmlInput: { min: 0 } }}
@@ -319,11 +322,12 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   }, [currentWorkout, exerciseLogs]);
 
   const maisOpcoes = [
-    { icon: <History sx={{ fontSize: 20, color: C.orange }} />, label: 'Histórico de treinos' },
-    { icon: <LocalFireDepartment sx={{ fontSize: 20, color: C.orange }} />, label: 'Fadiga Muscular' },
-    { icon: <NotificationsNone sx={{ fontSize: 20, color: C.orange }} />, label: 'Lembretes e notificações' },
-    { icon: <StarOutlined sx={{ fontSize: 20, color: C.orange }} />, label: 'Avaliar o Aplicativo' },
-    { icon: <Share sx={{ fontSize: 20, color: C.orange }} />, label: 'Compartilhar GymClaude' },
+    { icon: <History sx={{ fontSize: 20, color: C.orange }} />, label: 'Histórico de treinos', action: undefined },
+    { icon: <LocalFireDepartment sx={{ fontSize: 20, color: C.orange }} />, label: 'Fadiga Muscular', action: undefined },
+    { icon: <NotificationsNone sx={{ fontSize: 20, color: C.orange }} />, label: 'Lembretes e notificações', action: undefined },
+    { icon: <StarOutlined sx={{ fontSize: 20, color: C.orange }} />, label: 'Avaliar o Aplicativo', action: undefined },
+    { icon: <Share sx={{ fontSize: 20, color: C.orange }} />, label: 'Compartilhar GymClaude', action: undefined },
+    { icon: <Logout sx={{ fontSize: 20, color: '#FF4444' }} />, label: 'Sair', action: logout, danger: true },
   ];
 
   // ── View: Lista de exercícios de um treino ────────────────────────────────
@@ -409,13 +413,8 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
             Prepare-se, hoje é dia de treino!
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <IconButton onClick={logout} size="small" sx={{ color: C.textMuted, '&:hover': { color: C.textSec } }}>
-            <Logout sx={{ fontSize: 18 }} />
-          </IconButton>
-          <Box onClick={onResetProfile} sx={{ cursor: 'pointer' }}>
-            <Avatar src={currentUser?.photoURL ?? undefined} sx={{ width: 44, height: 44, border: `2.5px solid ${C.orange}` }} />
-          </Box>
+        <Box onClick={onResetProfile} sx={{ cursor: 'pointer' }}>
+          <Avatar src={currentUser?.photoURL ?? undefined} sx={{ width: 44, height: 44, border: `2.5px solid ${C.orange}` }} />
         </Box>
       </Box>
 
@@ -517,12 +516,23 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
       <Box sx={{ px: 2.5, mb: 4 }}>
         <Box sx={{ bgcolor: C.card, borderRadius: 3, border: `1px solid ${C.cardBorder}`, overflow: 'hidden' }}>
           {maisOpcoes.map((item, i) => (
-            <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2.5, py: 1.8, borderBottom: i < maisOpcoes.length - 1 ? `1px solid ${C.cardBorder}` : 'none', cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,122,0,0.05)' } }}>
+            <Box
+              key={i}
+              onClick={item.action}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 2, px: 2.5, py: 1.8,
+                borderBottom: i < maisOpcoes.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                cursor: 'pointer', transition: 'background 0.15s',
+                '&:hover': { bgcolor: (item as any).danger ? 'rgba(255,68,68,0.08)' : 'rgba(255,122,0,0.05)' },
+              }}
+            >
               <Box sx={{ width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {item.icon}
               </Box>
-              <Typography sx={{ fontSize: 15, color: C.textPri, flex: 1 }}>{item.label}</Typography>
-              <ChevronRight sx={{ fontSize: 18, color: C.textMuted }} />
+              <Typography sx={{ fontSize: 15, color: (item as any).danger ? '#FF4444' : C.textPri, flex: 1, fontWeight: (item as any).danger ? 600 : 400 }}>
+                {item.label}
+              </Typography>
+              {!(item as any).danger && <ChevronRight sx={{ fontSize: 18, color: C.textMuted }} />}
             </Box>
           ))}
         </Box>

@@ -46,25 +46,25 @@ export const UserProfileForm: React.FC<Props> = ({ onComplete }) => {
             <Grid size={4}>
               <TextField
                 fullWidth label="Idade" type="number"
-                value={profile.age}
-                onChange={e => update('age', Number(e.target.value))}
+                value={profile.age || ''}
+                onChange={e => update('age', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
                 slotProps={{ htmlInput: { min: 10, max: 100 } }}
               />
             </Grid>
             <Grid size={4}>
               <TextField
                 fullWidth label="Altura (cm)" type="number"
-                value={profile.height}
-                onChange={e => update('height', Number(e.target.value))}
+                value={profile.height || ''}
+                onChange={e => update('height', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
                 slotProps={{ htmlInput: { min: 100, max: 250 } }}
               />
             </Grid>
             <Grid size={4}>
               <TextField
                 fullWidth label="Peso (kg)" type="number"
-                value={profile.weight}
-                onChange={e => update('weight', Number(e.target.value))}
-                slotProps={{ htmlInput: { min: 30, max: 300 } }}
+                value={profile.weight || ''}
+                onChange={e => update('weight', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                slotProps={{ htmlInput: { min: 30, max: 300, step: 0.1 } }}
               />
             </Grid>
 

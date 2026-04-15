@@ -68,19 +68,17 @@ const AppContent: React.FC = () => {
 
   if (!currentUser) return <Login />;
 
-  const handleProfileSave = async (newProfile: UserProfile) => {
-    const isFirstSetup = !profile;
-    const planChanged = isFirstSetup || workoutFields.some(f => newProfile[f] !== profile![f]);
-
-    await setProfile(newProfile);
+  const handleProfileSave = (newProfile: UserProfile) => {
+    const planChanged = !profile || workoutFields.some(f => newProfile[f] !== profile![f]);
 
     if (planChanged) {
-      const generated = WorkoutGenerator.getWorkoutPlan(newProfile);
-      // Preserva treinos personalizados do usuário
+      const newGenerated = WorkoutGenerator.getWorkoutPlan(newProfile);
       const custom = workouts.filter((w: Workout) => w.id.startsWith('custom-'));
-      await setWorkouts([...generated, ...custom]);
+      // Sem await: atualiza o estado local imediatamente e escreve no Firestore em background
+      setWorkouts([...newGenerated, ...custom]);
     }
 
+    setProfile(newProfile);
     setEditingProfile(false);
   };
 

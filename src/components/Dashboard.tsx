@@ -323,12 +323,12 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
     setView('home');
   };
 
-  // Inicializa plano no Firestore se ainda não foi salvo
+  // Inicializa plano no Firestore apenas na primeira vez (sem treinos salvos)
   React.useEffect(() => {
     if (savedWorkouts.length === 0 && generated.length > 0) {
       saveWorkouts(generated);
     }
-  }, [generated]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [savedWorkouts.length, generated, saveWorkouts]);
 
   // Calcula progresso do treino ativo hoje
   const todayProgress = useMemo(() => {

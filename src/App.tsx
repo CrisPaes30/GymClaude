@@ -8,6 +8,7 @@ import { UserProfileForm } from './components/UserProfileForm';
 import { UserProfile, Workout } from './types';
 import { WorkoutGenerator } from './utils/workoutGenerator';
 
+
 const theme = createTheme({
   palette: {
     mode: 'dark',
@@ -47,12 +48,10 @@ const theme = createTheme({
   },
 });
 
-// Campos que, se mudarem, exigem regenerar o plano de treino
-const workoutFields: (keyof UserProfile)[] = ['trainingDays', 'goal', 'experience', 'trainingDuration'];
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
-  const { profile, setProfile, workouts, saveProfileAndWorkouts, dataLoading } = useUserData();
+  const { profile, workouts, saveProfileAndWorkouts, dataLoading } = useUserData();
   const [editingProfile, setEditingProfile] = React.useState(false);
 
   if (authLoading || (currentUser && dataLoading)) {
@@ -69,17 +68,11 @@ const AppContent: React.FC = () => {
   if (!currentUser) return <Login />;
 
   const handleProfileSave = (newProfile: UserProfile) => {
-    const planChanged = !profile || workoutFields.some(f => newProfile[f] !== profile![f]);
-
-    if (planChanged) {
-      const newGenerated = WorkoutGenerator.getWorkoutPlan(newProfile);
-      const custom = workouts.filter((w: Workout) => w.id.startsWith('custom-'));
-      // Atualiza perfil + treinos juntos em uma única renderização
-      saveProfileAndWorkouts(newProfile, [...newGenerated, ...custom]);
-    } else {
-      setProfile(newProfile);
-    }
-
+    // Sempre regenera os treinos da IA ao salvar o perfil.
+    // Treinos personalizados (id começa com 'custom-') são preservados.
+    const newGenerated = WorkoutGenerator.getWorkoutPlan(newProfile);
+    const custom = workouts.filter((w: Workout) => w.id.startsWith('custom-'));
+    saveProfileAndWorkouts(newProfile, [...newGenerated, ...custom]);
     setEditingProfile(false);
   };
 

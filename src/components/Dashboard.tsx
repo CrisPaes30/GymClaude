@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Box, Typography, Avatar, IconButton, InputBase,
-  Chip, Dialog, DialogContent, Slide, TextField, LinearProgress
+  Chip, Dialog, DialogContent, Slide, TextField
 } from '@mui/material';
 import {
   Search, ArrowBack, PlayArrow, FitnessCenter,

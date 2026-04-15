@@ -49,6 +49,7 @@ const theme = createTheme({
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const { profile, setProfile, dataLoading } = useUserData();
+  const [editingProfile, setEditingProfile] = React.useState(false);
 
   if (authLoading || (currentUser && dataLoading)) {
     return (
@@ -63,10 +64,12 @@ const AppContent: React.FC = () => {
 
   if (!currentUser) return <Login />;
 
-  if (!profile) {
+  if (!profile || editingProfile) {
     return (
       <UserProfileForm
-        onComplete={(p: UserProfile) => setProfile(p)}
+        initialProfile={profile ?? undefined}
+        onComplete={(p: UserProfile) => { setProfile(p); setEditingProfile(false); }}
+        onCancel={profile ? () => setEditingProfile(false) : undefined}
       />
     );
   }
@@ -74,7 +77,7 @@ const AppContent: React.FC = () => {
   return (
     <Dashboard
       userProfile={profile}
-      onResetProfile={() => setProfile(null)}
+      onResetProfile={() => setEditingProfile(true)}
     />
   );
 };

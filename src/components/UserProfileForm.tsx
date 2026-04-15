@@ -6,20 +6,26 @@ import {
 import { FitnessCenter } from '@mui/icons-material';
 import { UserProfile } from '../types';
 
+const DEFAULT_PROFILE: UserProfile = {
+  age: 25,
+  height: 170,
+  weight: 70,
+  goal: 'muscle_gain',
+  experience: 'beginner',
+  trainingDays: 3,
+  trainingDuration: 60,
+};
+
 interface Props {
   onComplete: (profile: UserProfile) => void;
+  onCancel?: () => void;
+  initialProfile?: UserProfile;
 }
 
-export const UserProfileForm: React.FC<Props> = ({ onComplete }) => {
-  const [profile, setProfile] = useState<UserProfile>({
-    age: 25,
-    height: 170,
-    weight: 70,
-    goal: 'muscle_gain',
-    experience: 'beginner',
-    trainingDays: 3,
-    trainingDuration: 60,
-  });
+export const UserProfileForm: React.FC<Props> = ({ onComplete, onCancel, initialProfile }) => {
+  const [profile, setProfile] = useState<UserProfile>(initialProfile ?? DEFAULT_PROFILE);
+
+  const isEditing = !!initialProfile;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +41,11 @@ export const UserProfileForm: React.FC<Props> = ({ onComplete }) => {
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
           <FitnessCenter color="primary" sx={{ fontSize: 48, mb: 1 }} />
-          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Configure seu Perfil</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+            {isEditing ? 'Editar Perfil' : 'Configure seu Perfil'}
+          </Typography>
           <Typography variant="body2" color="text.secondary">
-            Vamos personalizar seu treino
+            {isEditing ? 'Atualize suas informações' : 'Vamos personalizar seu treino'}
           </Typography>
         </Box>
 
@@ -112,8 +120,18 @@ export const UserProfileForm: React.FC<Props> = ({ onComplete }) => {
           </Grid>
 
           <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 3 }}>
-            Gerar Meu Plano de Treino
+            {isEditing ? 'Salvar Alterações' : 'Gerar Meu Plano de Treino'}
           </Button>
+
+          {isEditing && onCancel && (
+            <Button
+              fullWidth variant="text" size="large"
+              onClick={onCancel}
+              sx={{ mt: 1, color: 'text.secondary' }}
+            >
+              Cancelar
+            </Button>
+          )}
         </Box>
       </Paper>
     </Container>

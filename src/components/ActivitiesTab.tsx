@@ -1,67 +1,127 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Chip, Dialog, DialogContent,
-  Slide, IconButton, TextField, MenuItem,
+  Box, Typography, Dialog, DialogContent, Slide,
+  IconButton, TextField, MenuItem,
 } from '@mui/material';
 import {
-  FitnessCenter, AccessTime, EmojiEvents, LocalFireDepartment,
   DeleteForever, Add, ArrowBack, Check,
+  LocalFireDepartment, FitnessCenter, AccessTime,
 } from '@mui/icons-material';
 import { useUserData } from '../contexts/UserDataContext';
 import { WorkoutActivity } from '../types';
 
-const C = {
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+const T = {
   orange: '#FF7A00',
-  orangeLight: '#FF9A33',
-  orangeDim: 'rgba(255,122,0,0.15)',
-  orangeBorder: 'rgba(255,122,0,0.3)',
+  orangeHot: '#FF4500',
+  orangeLight: '#FFAA44',
+  orangeGlow: 'rgba(255,122,0,0.28)',
+  orangeDim: 'rgba(255,122,0,0.09)',
+  orangeBorder: 'rgba(255,122,0,0.22)',
   bg: '#111111',
-  card: '#1C1C1E',
-  cardBorder: 'rgba(255,255,255,0.07)',
-  textPri: '#FFFFFF',
-  textSec: '#8E8E93',
-  textMuted: '#48484A',
+  panel: '#161618',
+  line: 'rgba(255,255,255,0.07)',
+  white: '#FFFFFF',
+  sub: 'rgba(255,255,255,0.38)',
+  muted: 'rgba(255,255,255,0.14)',
+  faint: 'rgba(255,255,255,0.05)',
+  red: '#EF4444',
+  redDim: 'rgba(239,68,68,0.1)',
+  redBorder: 'rgba(239,68,68,0.28)',
 };
 
-function formatDate(isoString: string): string {
-  const date = new Date(isoString);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+const fmtDur = (min: number) => {
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h}h ${m}min` : `${h}h`;
+};
+
+function calcStreak(acts: WorkoutActivity[]): number {
+  if (!acts.length) return 0;
+  const dates = new Set(acts.map(a => a.endTime.split('T')[0]));
+  let s = 0;
+  const d = new Date();
+  while (dates.has(d.toISOString().split('T')[0])) { s++; d.setDate(d.getDate() - 1); }
+  return s;
+}
+
+function groupByDate(acts: WorkoutActivity[]) {
   const todayStr = new Date().toISOString().split('T')[0];
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
-  const actDate = isoString.split('T')[0];
-  const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  if (actDate === todayStr) return `Hoje, ${timeStr}`;
-  if (actDate === yesterdayStr) return `Ontem, ${timeStr}`;
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + `, ${timeStr}`;
-}
-
-function calcStreak(activities: WorkoutActivity[]): number {
-  if (activities.length === 0) return 0;
-  const activityDates = new Set(activities.map(a => a.endTime.split('T')[0]));
-  let streak = 0;
-  const current = new Date();
-  while (true) {
-    const dateStr = current.toISOString().split('T')[0];
-    if (activityDates.has(dateStr)) {
-      streak++;
-      current.setDate(current.getDate() - 1);
-    } else {
-      break;
-    }
+  const yestStr  = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const map = new Map<string, WorkoutActivity[]>();
+  for (const a of acts) {
+    const d = a.endTime.split('T')[0];
+    const label = d === todayStr ? 'Hoje'
+      : d === yestStr ? 'Ontem'
+      : new Date(a.endTime).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+    if (!map.has(label)) map.set(label, []);
+    map.get(label)!.push(a);
   }
-  return streak;
+  return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
 }
 
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
-}
+// ─── Tracker semanal ──────────────────────────────────────────────────────────
+const WeekStrip: React.FC<{ activities: WorkoutActivity[] }> = ({ activities }) => {
+  const trained = new Set(activities.map(a => a.endTime.split('T')[0]));
+  const today = new Date();
+  const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-// ─── Card de atividade ────────────────────────────────────────────────────────
-const ActivityCard: React.FC<{ activity: WorkoutActivity; onDelete: () => void }> = ({ activity, onDelete }) => {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    return {
+      key: d.toISOString().split('T')[0],
+      abbr: DAYS[d.getDay()].slice(0, 1),
+      num: d.getDate(),
+      isToday: i === 6,
+      done: trained.has(d.toISOString().split('T')[0]),
+    };
+  });
+
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, px: 2.5, mb: 0 }}>
+      {days.map(day => (
+        <Box key={day.key} sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+          {/* Número do dia */}
+          <Box sx={{
+            width: '100%', py: 1.2, borderRadius: '12px',
+            bgcolor: day.done ? T.orange : day.isToday ? T.orangeDim : T.faint,
+            border: `1px solid ${day.done ? T.orange : day.isToday ? T.orangeBorder : T.line}`,
+            boxShadow: day.done ? `0 2px 12px ${T.orangeGlow}` : 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.2,
+            transition: 'all 0.2s',
+          }}>
+            <Typography sx={{
+              fontSize: 14, fontWeight: 800, lineHeight: 1,
+              color: day.done ? '#fff' : day.isToday ? T.orange : T.muted,
+            }}>
+              {day.num}
+            </Typography>
+            <Typography sx={{
+              fontSize: 8, fontWeight: 700, letterSpacing: 0.3,
+              color: day.done ? 'rgba(255,255,255,0.7)' : day.isToday ? T.orange : T.muted,
+              textTransform: 'uppercase',
+            }}>
+              {day.abbr}
+            </Typography>
+          </Box>
+        </Box>
+      ))}
+    </Box>
+  );
+};
+
+// ─── Item de timeline ─────────────────────────────────────────────────────────
+const TimelineItem: React.FC<{
+  activity: WorkoutActivity;
+  isLast: boolean;
+  onDelete: () => void;
+}> = ({ activity, isLast, onDelete }) => {
+  const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   const progress = activity.totalExercises > 0
@@ -69,289 +129,251 @@ const ActivityCard: React.FC<{ activity: WorkoutActivity; onDelete: () => void }
     : 0;
 
   return (
-    <Box sx={{
-      mx: 2.5, mb: 2, p: 2.5, borderRadius: 3, bgcolor: C.card,
-      border: `1px solid ${confirming ? 'rgba(255,68,68,0.35)' : C.cardBorder}`,
-      position: 'relative', overflow: 'hidden', transition: 'border 0.2s',
-    }}>
-      {/* Linha decorativa */}
-      <Box sx={{
-        position: 'absolute', top: 0, left: 0, width: 4, height: '100%',
-        bgcolor: confirming ? '#FF4444' : C.orange, borderRadius: '3px 0 0 3px', transition: 'background 0.2s',
-      }} />
+    <Box sx={{ display: 'flex', gap: 0 }}>
+      {/* Linha + nó */}
+      <Box sx={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, pt: 0.4 }}>
+        <Box sx={{
+          width: 10, height: 10, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+          bgcolor: T.orange, boxShadow: `0 0 10px ${T.orangeGlow}`,
+        }} />
+        {!isLast && (
+          <Box sx={{ width: '1.5px', flex: 1, minHeight: 24, bgcolor: T.line, mt: '4px' }} />
+        )}
+      </Box>
 
-      <Box sx={{ pl: 0.5 }}>
-        {/* Nome, data e botão delete */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Typography sx={{ fontSize: 16, fontWeight: 700, color: confirming ? '#FF8888' : C.orange, lineHeight: 1.2, flex: 1, mr: 1, transition: 'color 0.2s' }}>
+      {/* Conteúdo */}
+      <Box
+        onClick={() => { setOpen(v => !v); if (confirming) setConfirming(false); }}
+        sx={{ flex: 1, pb: isLast ? 0 : 3, cursor: 'pointer' }}
+      >
+        {/* Linha principal */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 700, color: T.white, lineHeight: 1.25, flex: 1 }}>
             {activity.workoutName}
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-            <Typography sx={{ fontSize: 11, color: C.textSec, mt: 0.2 }}>
-              {formatDate(activity.endTime)}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0, mt: 0.1 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.orange, fontFamily: 'monospace' }}>
+              {fmtDur(activity.duration)}
             </Typography>
-            <IconButton
-              size="small"
-              onClick={() => setConfirming(v => !v)}
-              sx={{ color: confirming ? '#FF6666' : C.textMuted, p: 0.4, '&:hover': { color: '#FF6666', bgcolor: 'rgba(255,68,68,0.1)' } }}
-            >
-              <DeleteForever sx={{ fontSize: 16 }} />
-            </IconButton>
+            <Typography sx={{ fontSize: 11, color: T.muted }}>
+              {fmtTime(activity.endTime)}
+            </Typography>
           </Box>
         </Box>
-
-        {/* Confirmação de exclusão */}
-        {confirming && (
-          <Box sx={{ mb: 1.5, p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.25)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography sx={{ fontSize: 12, color: '#FF8888', flex: 1 }}>
-              Remover este registro?
-            </Typography>
-            <Box
-              onClick={onDelete}
-              sx={{ px: 1.5, py: 0.6, borderRadius: 2, cursor: 'pointer', bgcolor: '#FF4444', '&:hover': { bgcolor: '#FF6666' } }}
-            >
-              <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Remover</Typography>
-            </Box>
-            <Box
-              onClick={() => setConfirming(false)}
-              sx={{ px: 1.5, py: 0.6, borderRadius: 2, cursor: 'pointer', bgcolor: '#2C2C2E', '&:hover': { bgcolor: '#3A3A3C' } }}
-            >
-              <Typography sx={{ fontSize: 11, fontWeight: 600, color: C.textSec }}>Cancelar</Typography>
-            </Box>
-          </Box>
-        )}
 
         {/* Grupos musculares */}
         {activity.muscleGroups.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.7, flexWrap: 'wrap', mb: 1.5 }}>
-            {activity.muscleGroups.slice(0, 3).map(m => (
-              <Chip key={m} label={m.charAt(0).toUpperCase() + m.slice(1)} size="small"
-                sx={{ bgcolor: C.orangeDim, color: C.orange, border: `1px solid ${C.orangeBorder}`, fontSize: 10, height: 20 }} />
-            ))}
-          </Box>
+          <Typography sx={{ fontSize: 12, color: T.sub, mt: 0.3 }}>
+            {activity.muscleGroups.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' · ')}
+          </Typography>
         )}
 
-        {/* Stats */}
-        <Box sx={{ display: 'flex', gap: 2.5, mb: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-            <AccessTime sx={{ fontSize: 14, color: C.textSec }} />
-            <Typography sx={{ fontSize: 13, color: C.textSec, fontWeight: 600 }}>
-              {formatDuration(activity.duration)}
-            </Typography>
-          </Box>
-          {activity.totalExercises > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-              <FitnessCenter sx={{ fontSize: 14, color: C.textSec }} />
-              <Typography sx={{ fontSize: 13, color: C.textSec, fontWeight: 600 }}>
-                {activity.exercisesCompleted}/{activity.totalExercises} exercícios
-              </Typography>
-            </Box>
-          )}
-        </Box>
+        {/* Detalhes expandidos */}
+        {open && (
+          <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${T.line}` }} onClick={e => e.stopPropagation()}>
+            {activity.totalExercises > 0 && (
+              <Box sx={{ mb: 1.5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
+                  <Typography sx={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                    Exercícios
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: T.sub, fontFamily: 'monospace', fontWeight: 600 }}>
+                    {activity.exercisesCompleted} / {activity.totalExercises} — {progress}%
+                  </Typography>
+                </Box>
+                <Box sx={{ height: 2.5, borderRadius: 2, bgcolor: T.faint, overflow: 'hidden' }}>
+                  <Box sx={{
+                    height: '100%', borderRadius: 2,
+                    background: `linear-gradient(90deg, ${T.orangeHot}, ${T.orangeLight})`,
+                    width: `${Math.max(progress, 2)}%`,
+                    boxShadow: `2px 0 8px ${T.orangeGlow}`,
+                    transition: 'width 0.6s ease',
+                  }} />
+                </Box>
+              </Box>
+            )}
 
-        {/* Barra de progresso */}
-        {activity.totalExercises > 0 && (
-          <>
-            <Box sx={{ position: 'relative', height: 4, borderRadius: 2, bgcolor: '#2C2C2E' }}>
-              <Box sx={{
-                position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 2,
-                bgcolor: C.orange, width: `${Math.max(progress, 3)}%`, transition: 'width 0.6s ease',
-              }} />
-            </Box>
-            <Typography sx={{ fontSize: 10, color: C.textMuted, mt: 0.5 }}>
-              {progress}% concluído
-            </Typography>
-          </>
+            {!confirming ? (
+              <Box
+                onClick={() => setConfirming(true)}
+                sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, cursor: 'pointer', opacity: 0.6, '&:hover': { opacity: 1 }, transition: 'opacity 0.15s' }}
+              >
+                <DeleteForever sx={{ fontSize: 13, color: T.red }} />
+                <Typography sx={{ fontSize: 11, color: T.red, fontWeight: 600 }}>Remover registro</Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Typography sx={{ fontSize: 12, color: '#FCA5A5', flex: 1 }}>Remover este registro?</Typography>
+                <Box onClick={onDelete} sx={{ px: 1.5, py: 0.5, borderRadius: '8px', cursor: 'pointer', bgcolor: T.red, '&:hover': { filter: 'brightness(1.15)' } }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Sim</Typography>
+                </Box>
+                <Box onClick={() => setConfirming(false)} sx={{ px: 1.5, py: 0.5, borderRadius: '8px', cursor: 'pointer', bgcolor: T.faint, border: `1px solid ${T.line}` }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 600, color: T.sub }}>Não</Typography>
+                </Box>
+              </Box>
+            )}
+          </Box>
         )}
       </Box>
     </Box>
   );
 };
 
-// ─── Formulário de registro manual ───────────────────────────────────────────
+// ─── Dialog de registro manual ────────────────────────────────────────────────
 const ManualWorkoutDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { workouts, addActivity } = useUserData();
-
-  const nowDate = new Date();
-  const defaultDate = nowDate.toISOString().split('T')[0];
-  const defaultTime = `${String(nowDate.getHours()).padStart(2, '0')}:${String(nowDate.getMinutes()).padStart(2, '0')}`;
+  const now = new Date();
 
   const [selectedId, setSelectedId] = useState('');
   const [customName, setCustomName] = useState('');
-  const [date, setDate] = useState(defaultDate);
-  const [time, setTime] = useState(defaultTime);
+  const [date, setDate] = useState(now.toISOString().split('T')[0]);
+  const [time, setTime] = useState(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
   const [duration, setDuration] = useState('');
-  const [exercisesCompleted, setExercisesCompleted] = useState('');
-  const [totalExercises, setTotalExercises] = useState('');
+  const [exDone, setExDone] = useState('');
+  const [exTotal, setExTotal] = useState('');
 
-  const selectedWorkout = workouts.find(w => w.id === selectedId);
-  const workoutName = selectedId === '__custom__' ? customName : (selectedWorkout?.name ?? '');
-  const muscleGroups = selectedWorkout?.muscleGroups ?? [];
-  const isValid = workoutName.trim().length > 0 && duration.trim().length > 0 && parseInt(duration) > 0;
+  const sel = workouts.find(w => w.id === selectedId);
+  const name = selectedId === '__custom__' ? customName : (sel?.name ?? '');
+  const valid = name.trim().length > 0 && parseInt(duration) > 0;
 
-  const handleSave = () => {
-    if (!isValid) return;
-    const startDateTime = new Date(`${date}T${time}`);
+  const save = () => {
+    if (!valid) return;
+    const start = new Date(`${date}T${time}`);
     const dur = Math.max(1, parseInt(duration));
-    const endDateTime = new Date(startDateTime.getTime() + dur * 60000);
-    const completed = parseInt(exercisesCompleted) || 0;
-    const total = parseInt(totalExercises) || completed;
-
-    const activity: WorkoutActivity = {
+    const done = parseInt(exDone) || 0;
+    const total = parseInt(exTotal) || done;
+    addActivity({
       id: `manual_${Date.now()}`,
       workoutId: selectedId || 'manual',
-      workoutName: workoutName.trim(),
-      muscleGroups,
-      startTime: startDateTime.toISOString(),
-      endTime: endDateTime.toISOString(),
+      workoutName: name.trim(),
+      muscleGroups: sel?.muscleGroups ?? [],
+      startTime: start.toISOString(),
+      endTime: new Date(start.getTime() + dur * 60000).toISOString(),
       duration: dur,
-      exercisesCompleted: completed,
+      exercisesCompleted: done,
       totalExercises: total,
-    };
-
-    addActivity(activity);
+    });
     onClose();
   };
 
-  const fieldSx = {
-    '& .MuiInputBase-root': { bgcolor: '#2C2C2E', borderRadius: 2, color: C.textPri, fontSize: 14 },
-    '& fieldset': { borderColor: C.cardBorder },
-    '& .MuiInputBase-root:hover fieldset': { borderColor: C.orangeBorder },
-    '& .MuiInputBase-root.Mui-focused fieldset': { borderColor: C.orange },
-    '& .MuiInputLabel-root': { color: C.textSec },
-    '& .MuiInputLabel-root.Mui-focused': { color: C.orange },
-    '& .MuiSelect-icon': { color: C.textSec },
-    '& input[type="date"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.6)' },
-    '& input[type="time"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.6)' },
+  const F = {
+    '& .MuiInputBase-root': { bgcolor: '#1C1C20', borderRadius: '12px', color: T.white, fontSize: 14 },
+    '& fieldset': { borderColor: T.line, borderRadius: '12px' },
+    '& .MuiInputBase-root:hover fieldset': { borderColor: T.orangeBorder },
+    '& .MuiInputBase-root.Mui-focused fieldset': { borderColor: T.orange },
+    '& .MuiInputLabel-root': { color: T.sub },
+    '& .MuiInputLabel-root.Mui-focused': { color: T.orange },
+    '& .MuiSelect-icon': { color: T.sub },
+    '& input[type="date"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.5)' },
+    '& input[type="time"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.5)' },
+    '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' },
   };
 
   return (
-    <Dialog
-      fullScreen open onClose={onClose}
+    <Dialog fullScreen open onClose={onClose}
       slots={{ transition: Slide }}
-      slotProps={{ transition: { direction: 'up' } as any, paper: { sx: { bgcolor: C.bg } } }}
+      slotProps={{ transition: { direction: 'up' } as any, paper: { sx: { bgcolor: T.bg } } }}
     >
       <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', maxWidth: 480, mx: 'auto', width: '100%' }}>
-
         {/* Header */}
-        <Box sx={{ px: 2.5, pt: 3, pb: 2.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: `1px solid ${C.cardBorder}` }}>
-          <IconButton onClick={onClose} size="small" sx={{ color: C.textSec, bgcolor: '#2C2C2E', '&:hover': { bgcolor: C.orangeDim, color: C.orange } }}>
+        <Box sx={{ px: 2.5, pt: 4, pb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <IconButton onClick={onClose} size="small"
+            sx={{ color: T.sub, bgcolor: T.faint, border: `1px solid ${T.line}`, borderRadius: '12px', p: 0.8, '&:hover': { bgcolor: T.orangeDim, color: T.orange, borderColor: T.orangeBorder } }}>
             <ArrowBack fontSize="small" />
           </IconButton>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: 11, color: C.textSec, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>
+          <Box>
+            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2.5, fontWeight: 700, textTransform: 'uppercase' }}>
               Registro Manual
             </Typography>
-            <Typography sx={{ fontSize: 18, fontWeight: 700, color: C.textPri, lineHeight: 1.2 }}>
-              Registrar Treino
+            <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 28, letterSpacing: 1.5, color: T.white, lineHeight: 1 }}>
+              Novo treino
             </Typography>
           </Box>
         </Box>
 
-        {/* Formulário */}
-        <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, pt: 3, pb: 4, display: 'flex', flexDirection: 'column', gap: 2.5, '::-webkit-scrollbar': { display: 'none' } }}>
+        <Box sx={{ height: '1px', bgcolor: T.line }} />
+
+        {/* Campos */}
+        <Box sx={{ flex: 1, overflowY: 'auto', '::-webkit-scrollbar': { display: 'none' } }}>
 
           {/* Treino */}
-          <Box>
-            <Typography sx={{ fontSize: 11, color: C.textSec, mb: 1, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 600 }}>
+          <Box sx={{ px: 2.5, pt: 3, pb: 2.5, borderBottom: `1px solid ${T.line}` }}>
+            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
               Treino
             </Typography>
-            <TextField
-              select fullWidth label="Selecionar treino" value={selectedId}
+            <TextField select fullWidth label="Selecionar treino" value={selectedId}
               onChange={e => { setSelectedId(e.target.value); setCustomName(''); }}
-              sx={fieldSx}
-              slotProps={{ inputLabel: { shrink: true } }}
+              sx={F} slotProps={{ inputLabel: { shrink: true } }}
             >
-              <MenuItem value="" sx={{ color: C.textSec, fontSize: 14 }}>— Escolha um treino —</MenuItem>
-              {workouts.map(w => (
-                <MenuItem key={w.id} value={w.id} sx={{ fontSize: 14 }}>{w.name}</MenuItem>
-              ))}
-              <MenuItem value="__custom__" sx={{ fontSize: 14, color: C.orange }}>+ Nome personalizado</MenuItem>
+              <MenuItem value="" sx={{ color: T.sub, fontSize: 13 }}>— Escolha um treino —</MenuItem>
+              {workouts.map(w => <MenuItem key={w.id} value={w.id} sx={{ fontSize: 14 }}>{w.name}</MenuItem>)}
+              <MenuItem value="__custom__" sx={{ fontSize: 13, color: T.orange }}>+ Nome personalizado</MenuItem>
             </TextField>
             {selectedId === '__custom__' && (
-              <TextField
-                fullWidth label="Nome do treino" value={customName}
+              <TextField fullWidth label="Nome do treino" value={customName}
                 onChange={e => setCustomName(e.target.value)}
                 placeholder="Ex: Treino de Peito"
-                sx={{ ...fieldSx, mt: 1.5 }}
+                sx={{ ...F, mt: 1.5 }}
               />
             )}
           </Box>
 
-          {/* Data e Hora */}
-          <Box>
-            <Typography sx={{ fontSize: 11, color: C.textSec, mb: 1, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 600 }}>
-              Data e hora
+          {/* Data e hora + duração */}
+          <Box sx={{ px: 2.5, pt: 2.5, pb: 2.5, borderBottom: `1px solid ${T.line}` }}>
+            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
+              Quando · Quanto tempo
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <TextField
-                type="date" label="Data" value={date}
+            <Box sx={{ display: 'flex', gap: 1.2, mb: 1.2 }}>
+              <TextField type="date" label="Data" value={date}
                 onChange={e => setDate(e.target.value)}
-                sx={{ ...fieldSx, flex: 1 }}
-                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ ...F, flex: 1 }} slotProps={{ inputLabel: { shrink: true } }}
               />
-              <TextField
-                type="time" label="Hora" value={time}
+              <TextField type="time" label="Hora" value={time}
                 onChange={e => setTime(e.target.value)}
-                sx={{ ...fieldSx, flex: 1 }}
-                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ ...F, flex: 1 }} slotProps={{ inputLabel: { shrink: true } }}
               />
             </Box>
-          </Box>
-
-          {/* Duração */}
-          <Box>
-            <Typography sx={{ fontSize: 11, color: C.textSec, mb: 1, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 600 }}>
-              Duração (minutos) *
-            </Typography>
-            <TextField
-              type="number" fullWidth label="Duração em minutos" value={duration}
+            <TextField type="number" fullWidth label="Duração (minutos) *" value={duration}
               onChange={e => setDuration(e.target.value)}
-              placeholder="Ex: 60"
-              sx={fieldSx}
-              slotProps={{ htmlInput: { min: 1 } }}
+              placeholder="60" sx={F} slotProps={{ htmlInput: { min: 1 } }}
             />
           </Box>
 
-          {/* Exercícios (opcional) */}
-          <Box>
-            <Typography sx={{ fontSize: 11, color: C.textSec, mb: 1, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 600 }}>
-              Exercícios <Box component="span" sx={{ color: C.textMuted, textTransform: 'none', letterSpacing: 0 }}>(opcional)</Box>
+          {/* Exercícios */}
+          <Box sx={{ px: 2.5, pt: 2.5, pb: 3 }}>
+            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 0.5 }}>
+              Exercícios
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <TextField
-                type="number" label="Concluídos" value={exercisesCompleted}
-                onChange={e => setExercisesCompleted(e.target.value)}
-                placeholder="0"
-                sx={{ ...fieldSx, flex: 1 }}
-                slotProps={{ htmlInput: { min: 0 } }}
+            <Typography sx={{ fontSize: 11, color: T.sub, mb: 1.5 }}>Opcional</Typography>
+            <Box sx={{ display: 'flex', gap: 1.2 }}>
+              <TextField type="number" label="Concluídos" value={exDone}
+                onChange={e => setExDone(e.target.value)}
+                placeholder="0" sx={{ ...F, flex: 1 }} slotProps={{ htmlInput: { min: 0 } }}
               />
-              <TextField
-                type="number" label="Total" value={totalExercises}
-                onChange={e => setTotalExercises(e.target.value)}
-                placeholder="0"
-                sx={{ ...fieldSx, flex: 1 }}
-                slotProps={{ htmlInput: { min: 0 } }}
+              <TextField type="number" label="Total" value={exTotal}
+                onChange={e => setExTotal(e.target.value)}
+                placeholder="0" sx={{ ...F, flex: 1 }} slotProps={{ htmlInput: { min: 0 } }}
               />
             </Box>
           </Box>
         </Box>
 
-        {/* Botão salvar */}
-        <Box sx={{ px: 2.5, pb: 3, pt: 1.5, borderTop: `1px solid ${C.cardBorder}` }}>
-          <Box
-            onClick={handleSave}
-            sx={{
-              py: 1.8, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5,
-              cursor: isValid ? 'pointer' : 'default',
-              bgcolor: isValid ? C.orange : '#2C2C2E',
-              boxShadow: isValid ? `0 4px 20px rgba(255,122,0,0.35)` : 'none',
-              transition: 'all 0.2s',
-              '&:hover': isValid ? { bgcolor: C.orangeLight } : {},
-            }}
-          >
-            <Check sx={{ fontSize: 20, color: isValid ? '#fff' : C.textMuted }} />
-            <Typography sx={{ fontSize: 15, fontWeight: 700, color: isValid ? '#fff' : C.textMuted }}>
+        {/* Salvar */}
+        <Box sx={{ px: 2.5, pt: 2, pb: 3.5, borderTop: `1px solid ${T.line}` }}>
+          <Box onClick={save} sx={{
+            py: 1.8, borderRadius: '14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2,
+            cursor: valid ? 'pointer' : 'not-allowed',
+            background: valid
+              ? `linear-gradient(135deg, ${T.orangeHot} 0%, ${T.orange} 50%, ${T.orangeLight} 100%)`
+              : T.faint,
+            boxShadow: valid ? `0 6px 28px ${T.orangeGlow}` : 'none',
+            border: `1px solid ${valid ? 'transparent' : T.line}`,
+            transition: 'all 0.2s',
+            '&:hover': valid ? { filter: 'brightness(1.08)' } : {},
+          }}>
+            <Check sx={{ fontSize: 18, color: valid ? '#fff' : T.muted }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 700, color: valid ? '#fff' : T.muted, letterSpacing: 0.3 }}>
               Salvar Registro
             </Typography>
           </Box>
@@ -370,106 +392,156 @@ export const ActivitiesTab: React.FC = () => {
     (a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime()
   );
 
-  const totalMinutes = workoutActivities.reduce((acc, a) => acc + a.duration, 0);
-  const totalHours = Math.floor(totalMinutes / 60);
-  const streak = calcStreak(workoutActivities);
-
-  const stats = [
-    { icon: <FitnessCenter sx={{ fontSize: 20, color: C.orange }} />, value: String(workoutActivities.length), label: 'Treinos' },
-    { icon: <AccessTime sx={{ fontSize: 20, color: C.orange }} />, value: totalHours > 0 ? `${totalHours}h` : `${totalMinutes}min`, label: 'Total' },
-    { icon: <LocalFireDepartment sx={{ fontSize: 20, color: C.orange }} />, value: String(streak), label: 'Sequência' },
-  ];
+  const totalMin  = workoutActivities.reduce((s, a) => s + a.duration, 0);
+  const totalHStr = totalMin >= 60
+    ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? ` ${totalMin % 60}m` : ''}`
+    : `${totalMin}min`;
+  const streak  = calcStreak(workoutActivities);
+  const groups  = groupByDate(sorted);
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', '::-webkit-scrollbar': { display: 'none' } }}>
 
-      {/* Header */}
-      <Box sx={{ px: 2.5, pt: 4, pb: 2, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <Box sx={{ px: 2.5, pt: 4, pb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <Box>
-          <Typography sx={{ fontSize: 28, fontWeight: 300, color: C.textPri, lineHeight: 1.1 }}>
-            Suas{' '}
-            <Box component="span" sx={{ fontFamily: '"Bebas Neue"', fontWeight: 400, fontSize: 34, letterSpacing: 1 }}>
-              Atividades
-            </Box>
+          <Typography sx={{ fontSize: 9, color: T.muted, letterSpacing: 3, fontWeight: 700, textTransform: 'uppercase', mb: 0.5 }}>
+            Desempenho
           </Typography>
-          <Typography sx={{ fontSize: 13, color: C.textSec, mt: 0.5 }}>
-            Histórico completo dos seus treinos
+          <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 44, letterSpacing: 2, color: T.white, lineHeight: 0.88 }}>
+            Atividades
           </Typography>
         </Box>
-        {/* Botão registrar manualmente */}
         <Box
           onClick={() => setShowManual(true)}
-          sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 1.8, py: 1, borderRadius: 2.5, cursor: 'pointer', bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}`, flexShrink: 0, '&:hover': { bgcolor: 'rgba(255,122,0,0.25)' }, transition: 'background 0.15s' }}
+          sx={{
+            mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.6,
+            px: 1.6, py: 0.9, borderRadius: '12px', cursor: 'pointer',
+            background: `linear-gradient(135deg, ${T.orangeHot}, ${T.orangeLight})`,
+            boxShadow: `0 4px 18px ${T.orangeGlow}`,
+            '&:hover': { filter: 'brightness(1.1)' },
+            '&:active': { transform: 'scale(0.96)' },
+            transition: 'all 0.15s',
+          }}
         >
-          <Add sx={{ fontSize: 16, color: C.orange }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: C.orange }}>Registrar</Typography>
+          <Add sx={{ fontSize: 14, color: '#fff' }} />
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: 0.2 }}>
+            Registrar
+          </Typography>
         </Box>
       </Box>
 
-      {/* Stats */}
-      <Box sx={{ px: 2.5, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          {stats.map((s, i) => (
-            <Box key={i} sx={{
-              flex: 1, p: 2, borderRadius: 3, bgcolor: C.card,
-              border: `1px solid ${C.cardBorder}`, textAlign: 'center',
+      {/* ── Tracker semanal ────────────────────────────────────────────────── */}
+      <WeekStrip activities={workoutActivities} />
+
+      {/* ── Bloco de stats editorial ────────────────────────────────────────── */}
+      <Box sx={{ px: 2.5, pt: 3, pb: 0 }}>
+
+        {/* Linha divisora */}
+        <Box sx={{ height: '1px', bgcolor: T.line, mb: 3 }} />
+
+        {/* Streak em destaque (só mostra se > 0) */}
+        {streak > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, mb: 3 }}>
+            <Typography sx={{
+              fontFamily: '"Bebas Neue"', fontSize: 80, color: T.orange,
+              lineHeight: 0.82, letterSpacing: -2,
+              textShadow: `0 0 40px ${T.orangeGlow}`,
             }}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>{s.icon}</Box>
-              <Typography sx={{ fontSize: 20, fontWeight: 800, color: C.textPri, lineHeight: 1 }}>
-                {s.value}
-              </Typography>
-              <Typography sx={{ fontSize: 11, color: C.textSec, mt: 0.3, fontWeight: 500 }}>
-                {s.label}
+              {streak}
+            </Typography>
+            <Box sx={{ mb: 0.8, pb: 0.2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <LocalFireDepartment sx={{ fontSize: 14, color: T.orange }} />
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: T.orange, letterSpacing: 1, textTransform: 'uppercase' }}>
+                  {streak === 1 ? 'dia seguido' : 'dias seguidos'}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: 11, color: T.sub }}>Sequência atual</Typography>
+            </Box>
+          </Box>
+        )}
+
+        {/* Treinos + Tempo lado a lado */}
+        <Box sx={{ display: 'flex', gap: 0, mb: 3 }}>
+          <Box sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.3 }}>
+              <FitnessCenter sx={{ fontSize: 12, color: T.muted }} />
+              <Typography sx={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                Treinos
               </Typography>
             </Box>
-          ))}
-        </Box>
-      </Box>
-
-      {/* Label lista */}
-      <Box sx={{ px: 2.5, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography sx={{ fontSize: 18, fontWeight: 700, color: C.textPri }}>Histórico</Typography>
-        {workoutActivities.length > 0 && (
-          <Chip label={`${workoutActivities.length}`} size="small"
-            sx={{ bgcolor: C.orangeDim, color: C.orange, border: `1px solid ${C.orangeBorder}`, fontSize: 11, height: 20 }} />
-        )}
-      </Box>
-
-      {/* Lista */}
-      {sorted.length === 0 ? (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, px: 3, pb: 6 }}>
-          <Box sx={{ width: 72, height: 72, borderRadius: '50%', bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <EmojiEvents sx={{ fontSize: 36, color: C.orange }} />
+            <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 48, color: T.white, lineHeight: 0.9, letterSpacing: 1 }}>
+              {workoutActivities.length}
+            </Typography>
           </Box>
-          <Typography sx={{ fontSize: 17, fontWeight: 700, color: C.textPri, textAlign: 'center' }}>
-            Nenhum treino registrado
+          <Box sx={{ width: '1px', bgcolor: T.line, mx: 3 }} />
+          <Box sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.3 }}>
+              <AccessTime sx={{ fontSize: 12, color: T.muted }} />
+              <Typography sx={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                Tempo total
+              </Typography>
+            </Box>
+            <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 48, color: T.white, lineHeight: 0.9, letterSpacing: 1 }}>
+              {workoutActivities.length === 0 ? '—' : totalHStr}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ height: '1px', bgcolor: T.line }} />
+      </Box>
+
+      {/* ── Timeline de atividades ─────────────────────────────────────────── */}
+      {sorted.length === 0 ? (
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, px: 4, pb: 8 }}>
+          <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 22, color: T.muted, letterSpacing: 2 }}>
+            Sem registros ainda
           </Typography>
-          <Typography sx={{ fontSize: 13, color: C.textSec, textAlign: 'center', lineHeight: 1.6 }}>
-            Inicie um treino na aba Treinos e finalize, ou use o botão{' '}
-            <Box component="span" sx={{ color: C.orange, fontWeight: 600 }}>Registrar</Box>{' '}
-            para adicionar manualmente.
+          <Typography sx={{ fontSize: 13, color: T.sub, textAlign: 'center', lineHeight: 1.7 }}>
+            Finalize um treino na aba Treinos ou use o botão Registrar para adicionar manualmente.
           </Typography>
-          <Box
-            onClick={() => setShowManual(true)}
-            sx={{ mt: 1, px: 3, py: 1.5, borderRadius: 3, bgcolor: C.orange, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1, '&:hover': { bgcolor: C.orangeLight }, transition: 'background 0.15s' }}
-          >
-            <Add sx={{ fontSize: 18, color: '#fff' }} />
+          <Box onClick={() => setShowManual(true)} sx={{
+            mt: 0.5, px: 3, py: 1.4, borderRadius: '14px',
+            background: `linear-gradient(135deg, ${T.orangeHot}, ${T.orangeLight})`,
+            boxShadow: `0 6px 22px ${T.orangeGlow}`,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+            '&:hover': { filter: 'brightness(1.1)' }, transition: 'all 0.15s',
+          }}>
+            <Add sx={{ fontSize: 17, color: '#fff' }} />
             <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Registrar treino</Typography>
           </Box>
         </Box>
       ) : (
-        <Box sx={{ pb: 3 }}>
-          {sorted.map(activity => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
-              onDelete={() => removeActivity(activity.id)}
-            />
+        <Box sx={{ px: 2.5, pt: 3, pb: 4 }}>
+          {groups.map((group, gi) => (
+            <Box key={gi} sx={{ mb: gi < groups.length - 1 ? 1 : 0 }}>
+              {/* Cabeçalho de data */}
+              <Typography sx={{
+                fontSize: 10, color: T.muted, fontWeight: 700,
+                letterSpacing: 2, textTransform: 'uppercase',
+                mb: 2, mt: gi > 0 ? 3 : 0,
+              }}>
+                {group.label}
+              </Typography>
+
+              {/* Itens de timeline */}
+              {group.items.map((activity, ai) => {
+                const isLast = gi === groups.length - 1 && ai === group.items.length - 1;
+                return (
+                  <TimelineItem
+                    key={activity.id}
+                    activity={activity}
+                    isLast={isLast}
+                    onDelete={() => removeActivity(activity.id)}
+                  />
+                );
+              })}
+            </Box>
           ))}
         </Box>
       )}
 
-      {/* Dialog de registro manual */}
       {showManual && <ManualWorkoutDialog onClose={() => setShowManual(false)} />}
     </Box>
   );

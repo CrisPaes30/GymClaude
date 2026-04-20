@@ -16,6 +16,7 @@ import { useUserData } from '../contexts/UserDataContext';
 import { WorkoutGenerator } from '../utils/workoutGenerator';
 import { UserProfile, Exercise, Workout, SetLog, ExerciseSession } from '../types';
 import { getExerciseImage, getExerciseThumbnail } from '../utils/exerciseImages';
+import { fetchExerciseGif, fetchExerciseThumbnail } from '../utils/exerciseGif';
 import { WorkoutEditor } from './WorkoutEditor';
 import { CreateWorkoutDialog } from './CreateWorkoutDialog';
 import { ActivitiesTab } from './ActivitiesTab';
@@ -142,12 +143,74 @@ const WeightLogger: React.FC<{ exercise: Exercise }> = ({ exercise }) => {
 // ─── Detalhe de exercício ─────────────────────────────────────────────────────
 const ExerciseDetail: React.FC<{ exercise: Exercise; onClose: () => void }> = ({ exercise, onClose }) => {
   const imgSrc = getExerciseImage(exercise.muscleGroup);
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
+  const [gifLoading, setGifLoading] = useState(true);
+
+  useEffect(() => {
+    setGifUrl(null);
+    setGifLoading(true);
+    fetchExerciseGif(exercise.id).then(url => {
+      setGifUrl(url);
+      setGifLoading(false);
+    });
+  }, [exercise.id]);
+
   return (
     <Dialog fullScreen open onClose={onClose} slots={{ transition: Slide }} slotProps={{ transition: { direction: 'up' } as any, paper: { sx: { bgcolor: C.bg } } }}>
       <DialogContent sx={{ p: 0, overflowY: 'auto' }}>
-        <Box sx={{ position: 'relative', width: '100%', height: 260 }}>
-          <Box component="img" src={imgSrc} alt={exercise.name} onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none'; }} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, rgba(17,17,17,0.1) 0%, rgba(17,17,17,0.97) 100%)` }} />
+        <Box sx={{ position: 'relative', width: '100%', height: 280, bgcolor: gifUrl ? '#0D0D0D' : 'transparent', overflow: 'hidden' }}>
+
+          {gifUrl ? (
+            /* ── GIF animado ── */
+            <>
+              <Box
+                component="img"
+                src={gifUrl}
+                alt={exercise.name}
+                sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 1 }}
+              />
+              {/* Badge GIF */}
+              <Box sx={{ position: 'absolute', top: 16, right: 16, px: 1.2, py: 0.4, borderRadius: '8px', bgcolor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                <Typography sx={{ fontSize: 9, fontWeight: 800, color: C.orange, letterSpacing: 1.5 }}>
+                  GIF AO VIVO
+                </Typography>
+              </Box>
+            </>
+          ) : (
+            /* ── Imagem estática + skeleton enquanto carrega ── */
+            <>
+              <Box
+                component="img"
+                src={imgSrc}
+                alt={exercise.name}
+                onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none'; }}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', filter: gifLoading ? 'brightness(0.6)' : 'none', transition: 'filter 0.3s' }}
+              />
+              {/* Shimmer enquanto busca */}
+              {gifLoading && (
+                <Box sx={{
+                  position: 'absolute', bottom: 48, left: '50%', transform: 'translateX(-50%)',
+                  display: 'flex', alignItems: 'center', gap: 1,
+                  px: 2, py: 0.8, borderRadius: '20px',
+                  bgcolor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+                }}>
+                  <Box sx={{
+                    width: 6, height: 6, borderRadius: '50%', bgcolor: C.orange,
+                    animation: 'gifPulse 1s infinite',
+                    '@keyframes gifPulse': { '0%,100%': { opacity: 0.3, transform: 'scale(0.8)' }, '50%': { opacity: 1, transform: 'scale(1.2)' } },
+                  }} />
+                  <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                    Carregando demonstração…
+                  </Typography>
+                </Box>
+              )}
+            </>
+          )}
+
+          <Box sx={{ position: 'absolute', inset: 0, background: gifUrl
+            ? 'linear-gradient(to bottom, transparent 60%, rgba(13,13,13,0.95) 100%)'
+            : 'linear-gradient(to bottom, rgba(17,17,17,0.1) 0%, rgba(17,17,17,0.97) 100%)'
+          }} />
           <IconButton onClick={onClose} sx={{ position: 'absolute', top: 16, left: 16, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', backdropFilter: 'blur(8px)', '&:hover': { bgcolor: C.orange } }}>
             <ArrowBack />
           </IconButton>
@@ -201,23 +264,36 @@ const ExerciseDetail: React.FC<{ exercise: Exercise; onClose: () => void }> = ({
 };
 
 // ─── Item de exercício na lista ───────────────────────────────────────────────
-const ExerciseRow: React.FC<{ exercise: Exercise; onClick: () => void }> = ({ exercise, onClick }) => (
-  <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2.5, py: 1.5, cursor: 'pointer', borderBottom: `1px solid ${C.cardBorder}`, transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,122,0,0.06)' }, '&:active': { bgcolor: C.orangeDim } }}>
-    <Box sx={{ width: 38, height: 38, borderRadius: '50%', bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <PlayArrow sx={{ fontSize: 18, color: C.orange, ml: '2px' }} />
+const ExerciseRow: React.FC<{ exercise: Exercise; onClick: () => void }> = ({ exercise, onClick }) => {
+  const fallback = getExerciseThumbnail(exercise.muscleGroup);
+  const [imgSrc, setImgSrc] = useState(fallback);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchExerciseThumbnail(exercise.id).then(url => {
+      if (!cancelled && url) setImgSrc(url);
+    });
+    return () => { cancelled = true; };
+  }, [exercise.id]);
+
+  return (
+    <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2.5, py: 1.5, cursor: 'pointer', borderBottom: `1px solid ${C.cardBorder}`, transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,122,0,0.06)' }, '&:active': { bgcolor: C.orangeDim } }}>
+      <Box sx={{ width: 38, height: 38, borderRadius: '50%', bgcolor: C.orangeDim, border: `1px solid ${C.orangeBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <PlayArrow sx={{ fontSize: 18, color: C.orange, ml: '2px' }} />
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exercise.name}</Typography>
+        <Typography sx={{ fontSize: 12, color: C.textSec, mt: 0.2 }}>{exercise.muscleGroup.slice(0, 2).join(' · ')}</Typography>
+      </Box>
+      <Box sx={{ width: 60, height: 52, borderRadius: 2, overflow: 'hidden', flexShrink: 0, bgcolor: '#2C2C2E' }}>
+        <Box component="img" src={imgSrc} alt={exercise.name}
+          onError={() => setImgSrc(fallback)}
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.3s' }}
+        />
+      </Box>
     </Box>
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Typography sx={{ fontSize: 14, fontWeight: 600, color: C.textPri, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exercise.name}</Typography>
-      <Typography sx={{ fontSize: 12, color: C.textSec, mt: 0.2 }}>{exercise.muscleGroup.slice(0, 2).join(' · ')}</Typography>
-    </Box>
-    <Box sx={{ width: 60, height: 52, borderRadius: 2, overflow: 'hidden', flexShrink: 0, bgcolor: '#2C2C2E' }}>
-      <Box component="img" src={getExerciseThumbnail(exercise.muscleGroup)} alt={exercise.name}
-        onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.parentElement!.style.background = `linear-gradient(135deg, ${C.orangeDim}, rgba(255,60,0,0.15))`; e.currentTarget.style.display = 'none'; }}
-        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-    </Box>
-  </Box>
-);
+  );
+};
 
 // ─── Faixa de datas ───────────────────────────────────────────────────────────
 const DateStrip: React.FC = () => {

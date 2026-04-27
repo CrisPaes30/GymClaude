@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Box, Typography, IconButton } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { Add, FitnessCenter, LocalFireDepartment, DeleteForever, FitnessCenterOutlined } from '@mui/icons-material';
 import { useUserData } from '../../contexts/UserDataContext';
 import { useWorkoutStats, Period } from '../../hooks/useWorkoutStats';

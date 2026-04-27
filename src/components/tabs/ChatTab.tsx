@@ -78,7 +78,17 @@ export const ChatTab: React.FC = () => {
 
   const userContext = useMemo(() => ({
     profile,
-    workouts: workouts.map(w => ({ name: w.name, muscleGroups: w.muscleGroups })),
+    workouts: workouts.map(w => ({
+      name: w.name,
+      muscleGroups: w.muscleGroups,
+      estimatedDuration: w.estimatedDuration,
+      exercises: w.exercises.map(e => ({
+        name: e.name,
+        sets: e.sets,
+        reps: e.reps,
+        muscleGroup: e.muscleGroup,
+      })),
+    })),
     recentActivities: [...workoutActivities]
       .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())
       .slice(0, 7)

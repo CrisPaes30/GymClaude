@@ -5,13 +5,27 @@ interface HistoryItem {
   text: string;
 }
 
+interface WorkoutExercise {
+  name: string;
+  sets?: number;
+  reps?: string;
+  muscleGroup?: string[];
+}
+
+interface WorkoutContext {
+  name: string;
+  muscleGroups: string[];
+  estimatedDuration?: number;
+  exercises?: WorkoutExercise[];
+}
+
 interface UserContext {
   profile?: {
     age: number; height: number; weight: number;
     goal: string; experience: string;
     trainingDays: number; trainingDuration: number;
   };
-  workouts?: { name: string; muscleGroups: string[] }[];
+  workouts?: WorkoutContext[];
   recentActivities?: { workoutName: string; duration: number; date: string }[];
 }
 
@@ -33,7 +47,13 @@ function buildSystemPrompt(ctx: UserContext): string {
     : 'PERFIL: não disponível';
 
   const workoutsBlock = (ctx.workouts ?? []).length > 0
-    ? `PLANO DE TREINO:\n${ctx.workouts!.map(w => `- ${w.name}${w.muscleGroups.length ? ` (${w.muscleGroups.join(', ')})` : ''}`).join('\n')}`
+    ? `PLANO DE TREINO COMPLETO:\n${ctx.workouts!.map(w => {
+        const header = `${w.name} (${w.muscleGroups.join(', ')})${w.estimatedDuration ? ` — ~${w.estimatedDuration}min` : ''}`;
+        const exList = (w.exercises ?? []).length > 0
+          ? '\n' + w.exercises!.map(e => `  • ${e.name}${e.sets ? `: ${e.sets}x${e.reps ?? '?'}` : ''}`).join('\n')
+          : '';
+        return header + exList;
+      }).join('\n\n')}`
     : 'PLANO DE TREINO: não configurado';
 
   const activitiesBlock = (ctx.recentActivities ?? []).length > 0
@@ -52,9 +72,10 @@ ${activitiesBlock}
 DIRETRIZES:
 - Responda SEMPRE em português brasileiro
 - Seja motivador, direto e prático
-- Respostas concisas (3-5 frases, exceto quando pedir algo detalhado)
-- Baseie sugestões no perfil e histórico do usuário
-- Não invente informações que não estejam no perfil`;
+- Adapte o tamanho da resposta à pergunta: perguntas simples = resposta curta, perguntas sobre treino/técnica = resposta completa e detalhada
+- SEMPRE mencione exercícios e dados específicos do plano do usuário quando for relevante
+- Baseie todas as sugestões no perfil, plano de treino e histórico do usuário
+- Não invente exercícios ou dados que não estejam no perfil`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -88,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1500 },
         }),
       }
     );

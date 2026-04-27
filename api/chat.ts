@@ -75,7 +75,24 @@ DIRETRIZES:
 - Adapte o tamanho da resposta à pergunta: perguntas simples = resposta curta, perguntas sobre treino/técnica = resposta completa e detalhada
 - SEMPRE mencione exercícios e dados específicos do plano do usuário quando for relevante
 - Baseie todas as sugestões no perfil, plano de treino e histórico do usuário
-- Não invente exercícios ou dados que não estejam no perfil`;
+
+GERAÇÃO DE TREINOS:
+Quando o usuário pedir para criar, montar, gerar ou sugerir um treino personalizado:
+1. Apresente o treino em texto natural explicando a proposta
+2. Inclua ao final EXATAMENTE este bloco JSON (sem texto depois dele):
+[TREINO_JSON]
+{"name":"Nome do Treino","muscleGroups":["grupo1","grupo2"],"difficulty":"intermediate","estimatedDuration":60,"exercises":[{"name":"Nome do Exercício","muscleGroup":["grupo"],"difficulty":"intermediate","equipment":["equipamento"],"sets":3,"reps":"8-12","rest":60,"instructions":["Passo 1","Passo 2","Passo 3"]}]}
+[/TREINO_JSON]
+
+REGRAS DO JSON:
+- difficulty deve ser exatamente: "beginner", "intermediate" ou "advanced"
+- Gere entre 4 e 8 exercícios por treino
+- reps pode ser número fixo ("12") ou intervalo ("8-12") ou tempo ("30s")
+- rest é o descanso em segundos entre séries
+- instructions deve ter 2-4 passos descrevendo a execução correta
+- Todos os textos em português brasileiro
+- O JSON deve ser válido e completo — não quebre a estrutura
+- Adapte dificuldade e volume ao perfil do usuário`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -109,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1500 },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2500 },
         }),
       }
     );

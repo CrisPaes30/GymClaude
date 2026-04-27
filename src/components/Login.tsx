@@ -5,7 +5,6 @@ import {
   Typography,
   Button,
   Box,
-  Avatar
 } from '@mui/material';
 import { Google } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';

@@ -67,7 +67,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!message?.trim()) return res.status(400).end();
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+  if (!apiKey) {
+    console.error('[chat] GEMINI_API_KEY not set');
+    return res.status(500).json({ error: 'API key not configured' });
+  }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -88,8 +91,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const text = result.response.text();
 
     return res.status(200).json({ text });
-  } catch (err) {
-    console.error('Gemini error:', err);
+  } catch (err: any) {
+    console.error('[chat] Gemini error:', err?.message ?? err);
     return res.status(500).json({ error: 'Failed to generate response' });
   }
 }

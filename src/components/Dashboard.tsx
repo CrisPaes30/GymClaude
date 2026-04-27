@@ -276,7 +276,7 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   ];
 
   return (
-    <Box sx={{ height: '100vh', bgcolor: C.bg, maxWidth: 480, mx: 'auto', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ height: '100%', bgcolor: C.bg, maxWidth: 480, mx: 'auto', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* ── Conteúdo da tab ativa ────────────────────────────────────────── */}
       {activeTab === 'inicio' && (

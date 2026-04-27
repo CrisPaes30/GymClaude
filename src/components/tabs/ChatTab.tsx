@@ -299,7 +299,7 @@ export const ChatTab: React.FC = () => {
       </Box>
 
       {/* ── Mensagens ──────────────────────────────────────────────────────── */}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, '::-webkit-scrollbar': { display: 'none' } }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', '::-webkit-scrollbar': { display: 'none' } }}>
         {messages.map((msg, i) => (
           <Box key={i} sx={{
             display: 'flex',

@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface HistoryItem {
   role: 'user' | 'ai';
@@ -21,7 +20,6 @@ const goalMap: Record<string, string> = {
   fat_loss: 'perda de gordura',
   maintain: 'manutenção',
 };
-
 const expMap: Record<string, string> = {
   beginner: 'iniciante',
   intermediate: 'intermediário',
@@ -43,7 +41,7 @@ function buildSystemPrompt(ctx: UserContext): string {
     : 'ÚLTIMOS TREINOS: nenhum registrado ainda';
 
   return `Você é o GymCoach, personal trainer de IA do app GymClaude.
-Seu papel é ajudar o usuário a treinar melhor com base no perfil e histórico dele.
+Ajude o usuário a treinar melhor com base nos dados abaixo.
 
 ${profileBlock}
 
@@ -56,8 +54,7 @@ DIRETRIZES:
 - Seja motivador, direto e prático
 - Respostas concisas (3-5 frases, exceto quando pedir algo detalhado)
 - Baseie sugestões no perfil e histórico do usuário
-- Não invente informações que não estejam no perfil
-- Use o plano de treino existente como referência quando relevante`;
+- Não invente informações que não estejam no perfil`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -73,26 +70,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: buildSystemPrompt(userContext ?? {}),
-    });
+    const systemPrompt = buildSystemPrompt(userContext ?? {});
 
-    const chatHistory = ((history as HistoryItem[]) ?? [])
-      .slice(-10)
-      .map(m => ({
-        role: m.role === 'user' ? ('user' as const) : ('model' as const),
+    const contents = [
+      ...((history as HistoryItem[]) ?? []).slice(-10).map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }],
-      }));
+      })),
+      { role: 'user', parts: [{ text: message.trim() }] },
+    ];
 
-    const chat = model.startChat({ history: chatHistory });
-    const result = await chat.sendMessage(message.trim());
-    const text = result.response.text();
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text();
+      console.error('[chat] Gemini API error:', geminiRes.status, errBody);
+      return res.status(500).json({ error: 'Gemini API error' });
+    }
+
+    const data = await geminiRes.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Não consegui responder. Tente novamente!';
 
     return res.status(200).json({ text });
   } catch (err: any) {
-    console.error('[chat] Gemini error:', err?.message ?? err);
-    return res.status(500).json({ error: 'Failed to generate response' });
+    console.error('[chat] Unexpected error:', err?.message ?? err);
+    return res.status(500).json({ error: 'Internal error' });
   }
 }

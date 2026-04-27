@@ -58,7 +58,7 @@ const AppContent: React.FC = () => {
     return (
       <Box sx={{ height: '100vh', bgcolor: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
         <Box sx={{ width: 64, height: 64 }}>
-          <img src="/logo.svg" alt="GymClaude" style={{ width: '100%', height: '100%' }} />
+          <img src="/logo.jpg" alt="TreinaAI" style={{ width: '100%', height: '100%', borderRadius: 16 }} />
         </Box>
         <CircularProgress sx={{ color: '#4ADE80' }} size={28} />
       </Box>

@@ -41,14 +41,14 @@ export const Login: React.FC = () => {
             width: '100%'
           }}
         >
-          <Avatar sx={{ m: 1, bgcolor: 'primary.main', width: 80, height: 80 }}>
-            🏋️‍♂️
-          </Avatar>
-          <Typography component="h1" variant="h4" gutterBottom>
-            GymClaude
+          <Box sx={{ mb: 2 }}>
+            <img src="/logo.jpg" alt="TreinaAI" style={{ width: 120, height: 120, borderRadius: 20, objectFit: 'cover' }} />
+          </Box>
+          <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 800 }}>
+            TreinaAI
           </Typography>
           <Typography variant="subtitle1" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            Seu personal trainer inteligente
+            Seu treino. Sua evolução.
           </Typography>
 
           <Box sx={{ mt: 2, width: '100%' }}>

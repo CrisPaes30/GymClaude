@@ -40,7 +40,7 @@ function buildSystemPrompt(ctx: UserContext): string {
     ? `ÚLTIMOS TREINOS:\n${ctx.recentActivities!.slice(0, 7).map(a => `- ${a.workoutName}: ${a.duration}min em ${a.date}`).join('\n')}`
     : 'ÚLTIMOS TREINOS: nenhum registrado ainda';
 
-  return `Você é o GymCoach, personal trainer de IA do app GymClaude.
+  return `Você é o GymCoach, personal trainer de IA do app TreinaAI.
 Ajude o usuário a treinar melhor com base nos dados abaixo.
 
 ${profileBlock}

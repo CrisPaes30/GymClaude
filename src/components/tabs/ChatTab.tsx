@@ -64,7 +64,7 @@ export const ChatTab: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().split('T')[0];
-  const storageKey = `gymclaude_ai_${currentUser?.uid ?? 'anon'}_${today}`;
+  const storageKey = `treinaai_ai_${currentUser?.uid ?? 'anon'}_${today}`;
   const remaining = DAILY_LIMIT - dailyCount;
 
   useEffect(() => {

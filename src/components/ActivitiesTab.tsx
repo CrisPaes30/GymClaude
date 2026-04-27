@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Dialog, DialogContent, Slide,
-  IconButton, TextField, MenuItem,
+  Box, Typography, IconButton, TextField, MenuItem,
 } from '@mui/material';
 import {
   DeleteForever, Add, ArrowBack, Check,
@@ -219,7 +218,7 @@ const TimelineItem: React.FC<{
   );
 };
 
-// ─── Dialog de registro manual ────────────────────────────────────────────────
+// ─── Tela de registro manual ──────────────────────────────────────────────────
 const ManualWorkoutDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { workouts, addActivity } = useUserData();
   const now = new Date();
@@ -256,130 +255,154 @@ const ManualWorkoutDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     onClose();
   };
 
-  const F = {
-    '& .MuiInputBase-root': { bgcolor: '#1C1C20', borderRadius: '12px', color: T.white, fontSize: 14 },
-    '& fieldset': { borderColor: T.line, borderRadius: '12px' },
-    '& .MuiInputBase-root:hover fieldset': { borderColor: T.orangeBorder },
-    '& .MuiInputBase-root.Mui-focused fieldset': { borderColor: T.orange },
-    '& .MuiInputLabel-root': { color: T.sub },
-    '& .MuiInputLabel-root.Mui-focused': { color: T.orange },
-    '& .MuiSelect-icon': { color: T.sub },
-    '& input[type="date"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.5)' },
-    '& input[type="time"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.5)' },
+  const inputSx = {
+    '& .MuiInputBase-root': { backgroundColor: '#2A2A2E', borderRadius: '12px', color: '#FFFFFF', fontSize: 15 },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.15)', borderRadius: '12px' },
+    '& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,122,0,0.5)' },
+    '& .MuiInputBase-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF7A00' },
+    '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+    '& .MuiInputLabel-root.Mui-focused': { color: '#FF7A00' },
+    '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.5)' },
+    '& input[type="date"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.6)' },
+    '& input[type="time"]::-webkit-calendar-picker-indicator': { filter: 'invert(0.6)' },
     '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' },
+    '& .MuiInputBase-input::placeholder': { color: 'rgba(255,255,255,0.3)', opacity: 1 },
   };
 
   return (
-    <Dialog fullScreen open onClose={onClose}
-      slots={{ transition: Slide }}
-      slotProps={{ transition: { direction: 'up' } as any, paper: { sx: { bgcolor: T.bg } } }}
-    >
-      <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', maxWidth: 480, mx: 'auto', width: '100%' }}>
-        {/* Header */}
-        <Box sx={{ px: 2.5, pt: 4, pb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton onClick={onClose} size="small"
-            sx={{ color: T.sub, bgcolor: T.faint, border: `1px solid ${T.line}`, borderRadius: '12px', p: 0.8, '&:hover': { bgcolor: T.orangeDim, color: T.orange, borderColor: T.orangeBorder } }}>
-            <ArrowBack fontSize="small" />
-          </IconButton>
-          <Box>
-            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2.5, fontWeight: 700, textTransform: 'uppercase' }}>
-              Registro Manual
-            </Typography>
-            <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 28, letterSpacing: 1.5, color: T.white, lineHeight: 1 }}>
-              Novo treino
-            </Typography>
-          </Box>
+    <Box sx={{
+      position: 'fixed',
+      top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 1300,
+      backgroundColor: '#111111',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <Box sx={{ px: 2.5, pt: 5, pb: 2.5, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <IconButton onClick={onClose} size="small" sx={{
+          color: 'rgba(255,255,255,0.6)',
+          backgroundColor: 'rgba(255,255,255,0.07)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '12px',
+          p: 0.9,
+          '&:hover': { backgroundColor: 'rgba(255,122,0,0.15)', color: '#FF7A00', borderColor: 'rgba(255,122,0,0.4)' },
+        }}>
+          <ArrowBack sx={{ fontSize: 18 }} />
+        </IconButton>
+        <Box>
+          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 2.5, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1, mb: 0.3 }}>
+            Registro Manual
+          </Typography>
+          <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 28, letterSpacing: 1.5, color: '#FFFFFF', lineHeight: 1 }}>
+            Novo Treino
+          </Typography>
+        </Box>
+      </Box>
+
+      <Box sx={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+
+      {/* Campos scrolláveis */}
+      <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 3 }}>
+
+        {/* Treino */}
+        <Box sx={{ mb: 3 }}>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', mb: 1.5 }}>
+            Treino
+          </Typography>
+          <TextField select fullWidth label="Selecionar treino" value={selectedId}
+            onChange={e => { setSelectedId(e.target.value); setCustomName(''); }}
+            sx={inputSx}
+            slotProps={{ inputLabel: { shrink: true } }}
+          >
+            <MenuItem value="" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>— Escolha um treino —</MenuItem>
+            {workouts.map(w => <MenuItem key={w.id} value={w.id} sx={{ fontSize: 14 }}>{w.name}</MenuItem>)}
+            <MenuItem value="__custom__" sx={{ fontSize: 13, color: '#FF7A00' }}>+ Nome personalizado</MenuItem>
+          </TextField>
+          {selectedId === '__custom__' && (
+            <TextField fullWidth label="Nome do treino" value={customName}
+              onChange={e => setCustomName(e.target.value)}
+              placeholder="Ex: Treino de Peito"
+              sx={{ ...inputSx, mt: 1.5 }}
+            />
+          )}
         </Box>
 
-        <Box sx={{ height: '1px', bgcolor: T.line }} />
-
-        {/* Campos */}
-        <Box sx={{ flex: 1, overflowY: 'auto', '::-webkit-scrollbar': { display: 'none' } }}>
-
-          {/* Treino */}
-          <Box sx={{ px: 2.5, pt: 3, pb: 2.5, borderBottom: `1px solid ${T.line}` }}>
-            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
-              Treino
-            </Typography>
-            <TextField select fullWidth label="Selecionar treino" value={selectedId}
-              onChange={e => { setSelectedId(e.target.value); setCustomName(''); }}
-              sx={F} slotProps={{ inputLabel: { shrink: true } }}
-            >
-              <MenuItem value="" sx={{ color: T.sub, fontSize: 13 }}>— Escolha um treino —</MenuItem>
-              {workouts.map(w => <MenuItem key={w.id} value={w.id} sx={{ fontSize: 14 }}>{w.name}</MenuItem>)}
-              <MenuItem value="__custom__" sx={{ fontSize: 13, color: T.orange }}>+ Nome personalizado</MenuItem>
-            </TextField>
-            {selectedId === '__custom__' && (
-              <TextField fullWidth label="Nome do treino" value={customName}
-                onChange={e => setCustomName(e.target.value)}
-                placeholder="Ex: Treino de Peito"
-                sx={{ ...F, mt: 1.5 }}
-              />
-            )}
-          </Box>
-
-          {/* Data e hora + duração */}
-          <Box sx={{ px: 2.5, pt: 2.5, pb: 2.5, borderBottom: `1px solid ${T.line}` }}>
-            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
-              Quando · Quanto tempo
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1.2, mb: 1.2 }}>
-              <TextField type="date" label="Data" value={date}
-                onChange={e => setDate(e.target.value)}
-                sx={{ ...F, flex: 1 }} slotProps={{ inputLabel: { shrink: true } }}
-              />
-              <TextField type="time" label="Hora" value={time}
-                onChange={e => setTime(e.target.value)}
-                sx={{ ...F, flex: 1 }} slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Box>
-            <TextField type="number" fullWidth label="Duração (minutos) *" value={duration}
-              onChange={e => setDuration(e.target.value)}
-              placeholder="60" sx={F} slotProps={{ htmlInput: { min: 1 } }}
+        {/* Data, hora e duração */}
+        <Box sx={{ mb: 3 }}>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', mb: 1.5 }}>
+            Quando · Duração
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
+            <TextField type="date" label="Data" value={date}
+              onChange={e => setDate(e.target.value)}
+              sx={{ ...inputSx, flex: 1 }}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField type="time" label="Hora" value={time}
+              onChange={e => setTime(e.target.value)}
+              sx={{ ...inputSx, flex: 1 }}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
           </Box>
+          <TextField type="number" fullWidth label="Duração em minutos *" value={duration}
+            onChange={e => setDuration(e.target.value)}
+            placeholder="60"
+            sx={inputSx}
+            slotProps={{ htmlInput: { min: 1 } }}
+          />
+        </Box>
 
-          {/* Exercícios */}
-          <Box sx={{ px: 2.5, pt: 2.5, pb: 3 }}>
-            <Typography sx={{ fontSize: 10, color: T.muted, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', mb: 0.5 }}>
+        {/* Exercícios (opcional) */}
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
               Exercícios
             </Typography>
-            <Typography sx={{ fontSize: 11, color: T.sub, mb: 1.5 }}>Opcional</Typography>
-            <Box sx={{ display: 'flex', gap: 1.2 }}>
-              <TextField type="number" label="Concluídos" value={exDone}
-                onChange={e => setExDone(e.target.value)}
-                placeholder="0" sx={{ ...F, flex: 1 }} slotProps={{ htmlInput: { min: 0 } }}
-              />
-              <TextField type="number" label="Total" value={exTotal}
-                onChange={e => setExTotal(e.target.value)}
-                placeholder="0" sx={{ ...F, flex: 1 }} slotProps={{ htmlInput: { min: 0 } }}
-              />
-            </Box>
+            <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 500 }}>
+              opcional
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <TextField type="number" label="Concluídos" value={exDone}
+              onChange={e => setExDone(e.target.value)}
+              placeholder="0"
+              sx={{ ...inputSx, flex: 1 }}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField type="number" label="Total" value={exTotal}
+              onChange={e => setExTotal(e.target.value)}
+              placeholder="0"
+              sx={{ ...inputSx, flex: 1 }}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
           </Box>
         </Box>
 
-        {/* Salvar */}
-        <Box sx={{ px: 2.5, pt: 2, pb: 3.5, borderTop: `1px solid ${T.line}` }}>
-          <Box onClick={save} sx={{
-            py: 1.8, borderRadius: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2,
-            cursor: valid ? 'pointer' : 'not-allowed',
-            background: valid
-              ? `linear-gradient(135deg, ${T.orangeHot} 0%, ${T.orange} 50%, ${T.orangeLight} 100%)`
-              : T.faint,
-            boxShadow: valid ? `0 6px 28px ${T.orangeGlow}` : 'none',
-            border: `1px solid ${valid ? 'transparent' : T.line}`,
-            transition: 'all 0.2s',
-            '&:hover': valid ? { filter: 'brightness(1.08)' } : {},
-          }}>
-            <Check sx={{ fontSize: 18, color: valid ? '#fff' : T.muted }} />
-            <Typography sx={{ fontSize: 15, fontWeight: 700, color: valid ? '#fff' : T.muted, letterSpacing: 0.3 }}>
-              Salvar Registro
-            </Typography>
-          </Box>
+      </Box>
+
+      {/* Botão salvar */}
+      <Box sx={{ px: 2.5, pt: 2, pb: 4, flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <Box onClick={save} sx={{
+          py: 1.8, borderRadius: '14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2,
+          cursor: valid ? 'pointer' : 'not-allowed',
+          background: valid
+            ? 'linear-gradient(135deg, #FF4500 0%, #FF7A00 50%, #FFAA44 100%)'
+            : 'rgba(255,255,255,0.05)',
+          boxShadow: valid ? '0 6px 28px rgba(255,122,0,0.35)' : 'none',
+          border: `1px solid ${valid ? 'transparent' : 'rgba(255,255,255,0.1)'}`,
+          transition: 'all 0.2s',
+          '&:hover': valid ? { filter: 'brightness(1.08)' } : {},
+          '&:active': valid ? { transform: 'scale(0.98)' } : {},
+        }}>
+          <Check sx={{ fontSize: 18, color: valid ? '#fff' : 'rgba(255,255,255,0.25)' }} />
+          <Typography sx={{ fontSize: 15, fontWeight: 700, color: valid ? '#fff' : 'rgba(255,255,255,0.25)', letterSpacing: 0.3 }}>
+            Salvar Registro
+          </Typography>
         </Box>
-      </DialogContent>
-    </Dialog>
+      </Box>
+    </Box>
   );
 };
 

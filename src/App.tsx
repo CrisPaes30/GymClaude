@@ -12,11 +12,11 @@ import { WorkoutGenerator } from './utils/workoutGenerator';
 const theme = createTheme({
   palette: {
     mode: 'dark',
-    primary: { main: '#FF7A00', light: '#FF9A33', dark: '#CC6200' },
-    secondary: { main: '#FF4D00' },
-    background: { default: '#111111', paper: '#1C1C1E' },
-    text: { primary: '#FFFFFF', secondary: '#8E8E93' },
-    divider: 'rgba(255,255,255,0.07)',
+    primary: { main: '#4ADE80', light: '#86EFAC', dark: '#22C55E' },
+    secondary: { main: '#22C55E' },
+    background: { default: '#0D0D0F', paper: '#161618' },
+    text: { primary: '#FFFFFF', secondary: 'rgba(255,255,255,0.45)' },
+    divider: 'rgba(255,255,255,0.06)',
   },
   typography: {
     fontFamily: '"DM Sans", "Roboto", sans-serif',
@@ -60,7 +60,7 @@ const AppContent: React.FC = () => {
         <Box sx={{ width: 64, height: 64 }}>
           <img src="/logo.svg" alt="GymClaude" style={{ width: '100%', height: '100%' }} />
         </Box>
-        <CircularProgress sx={{ color: '#FF7A00' }} size={28} />
+        <CircularProgress sx={{ color: '#4ADE80' }} size={28} />
       </Box>
     );
   }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, Workout, ExerciseSession, WorkoutActivity, ActiveWorkout } from '../types';
@@ -32,6 +32,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
   const [profile, setProfileState] = useState<UserProfile | null>(null);
   const [workouts, setWorkoutsState] = useState<Workout[]>([]);
+  const workoutsRef = useRef<Workout[]>([]); // sempre aponta para o valor mais recente
+  workoutsRef.current = workouts;
   const [exerciseLogs, setExerciseLogsState] = useState<Record<string, ExerciseSession[]>>({});
   const [dataLoading, setDataLoading] = useState(true);
   const [workoutActivities, setWorkoutActivitiesState] = useState<WorkoutActivity[]>([]);
@@ -124,11 +126,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, persistWorkouts]);
 
   const addWorkout = useCallback((workout: Workout) => {
-    setWorkoutsState(prev => {
-      const updated = [...prev, workout];
-      if (currentUser) persistWorkouts(updated, currentUser.uid);
-      return updated;
-    });
+    const updated = [...workoutsRef.current, workout];
+    setWorkoutsState(updated);
+    if (currentUser) persistWorkouts(updated, currentUser.uid);
   }, [currentUser, persistWorkouts]);
 
   // ── Atualiza perfil + treinos em uma única renderização ──────────────────────

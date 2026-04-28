@@ -17,6 +17,36 @@ const expMap: Record<string, string> = {
   advanced: 'avançado',
 };
 
+const responseSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    muscleGroups: { type: 'array', items: { type: 'string' } },
+    difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+    estimatedDuration: { type: 'integer' },
+    exercises: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          muscleGroup: { type: 'array', items: { type: 'string' } },
+          difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+          equipment: { type: 'array', items: { type: 'string' } },
+          sets: { type: 'integer' },
+          reps: { type: 'string' },
+          rest: { type: 'integer' },
+          instructions: { type: 'array', items: { type: 'string' }, maxItems: 2 },
+        },
+        required: ['name', 'muscleGroup', 'difficulty', 'equipment', 'sets', 'reps', 'rest', 'instructions'],
+      },
+      minItems: 4,
+      maxItems: 6,
+    },
+  },
+  required: ['name', 'muscleGroups', 'difficulty', 'estimatedDuration', 'exercises'],
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -31,36 +61,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const p = profile as UserProfile | undefined;
   const profileText = p
-    ? `Perfil do usuário: ${p.age} anos, ${p.weight}kg, ${p.height}cm, objetivo: ${goalMap[p.goal ?? ''] ?? p.goal ?? 'não informado'}, nível: ${expMap[p.experience ?? ''] ?? p.experience ?? 'não informado'}, treina ${p.trainingDays ?? '?'}x/semana, ${p.trainingDuration ?? '?'}min/sessão.`
-    : 'Perfil do usuário: não disponível.';
+    ? `${p.age} anos, ${p.weight}kg, objetivo: ${goalMap[p.goal ?? ''] ?? p.goal}, nível: ${expMap[p.experience ?? ''] ?? p.experience}, ${p.trainingDays}x/semana, ${p.trainingDuration}min/sessão`
+    : 'perfil não disponível';
 
-  const prompt = `Você é um personal trainer especialista em musculação.
-${profileText}
-Pedido do usuário: "${request.trim()}"
-
-Gere um treino completo de academia com 4 a 8 exercícios.
-Adapte a dificuldade, volume e grupos musculares ao perfil e ao pedido.
-Todos os textos em português brasileiro.
-Responda SOMENTE com um JSON válido seguindo exatamente esta estrutura (sem texto fora do JSON):
-{
-  "name": "Nome do Treino",
-  "muscleGroups": ["Peitoral", "Tríceps"],
-  "difficulty": "intermediate",
-  "estimatedDuration": 60,
-  "exercises": [
-    {
-      "name": "Supino Reto com Barra",
-      "muscleGroup": ["Peitoral"],
-      "difficulty": "intermediate",
-      "equipment": ["Barra", "Banco"],
-      "sets": 4,
-      "reps": "8-12",
-      "rest": 90,
-      "instructions": ["Deite no banco, segure a barra na largura dos ombros.", "Desça a barra até o peito de forma controlada.", "Empurre de volta à posição inicial expirando o ar."]
-    }
-  ]
-}
-difficulty deve ser exatamente: "beginner", "intermediate" ou "advanced".`;
+  const prompt = `Personal trainer. Gere um treino de academia em português brasileiro.
+Perfil: ${profileText}
+Pedido: "${request.trim()}"
+Gere 4 a 6 exercícios. Instructions: máximo 2 passos curtos por exercício. Adapte ao perfil.`;
 
   try {
     const geminiRes = await fetch(
@@ -72,8 +79,9 @@ difficulty deve ser exatamente: "beginner", "intermediate" ou "advanced".`;
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: 'application/json',
-            temperature: 0.8,
-            maxOutputTokens: 4000,
+            responseSchema,
+            temperature: 0.7,
+            maxOutputTokens: 8192,
           },
         }),
       }
@@ -86,7 +94,15 @@ difficulty deve ser exatamente: "beginner", "intermediate" ou "advanced".`;
     }
 
     const data = await geminiRes.json();
-    const raw: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const candidate = data?.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+
+    if (finishReason && finishReason !== 'STOP') {
+      console.error('[generate-workout] Truncated response, finishReason:', finishReason);
+      return res.status(500).json({ error: `Response truncated: ${finishReason}` });
+    }
+
+    const raw: string = candidate?.content?.parts?.[0]?.text ?? '';
     if (!raw) return res.status(500).json({ error: 'Empty response from Gemini' });
 
     const workout = JSON.parse(raw);

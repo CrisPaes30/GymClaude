@@ -310,7 +310,10 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
         />
       )}
       {activeTab === 'progresso' && <ProgressoTab />}
-      {activeTab === 'chat' && <ChatTab />}
+      {/* ChatTab fica sempre montado — CSS display preserva o state entre navegações */}
+      <Box sx={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <ChatTab />
+      </Box>
       {activeTab === 'perfil' && (
         <PerfilTab
           onResetProfile={onResetProfile}

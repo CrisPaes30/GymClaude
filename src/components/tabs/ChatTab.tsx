@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography } from '@mui/material';
-import { SmartToy, Send, FitnessCenter, AccessTime, Check } from '@mui/icons-material';
+import { SmartToy, Send, FitnessCenter, AccessTime, Check, AutoAwesome } from '@mui/icons-material';
 import { useUserData } from '../../contexts/UserDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { C } from '../../theme/tokens';
@@ -22,20 +22,21 @@ interface Message {
   role: 'user' | 'ai';
   text: string;
   workout?: ParsedWorkout;
+  isGenerating?: boolean;
+}
+
+// ─── Detecção de intenção de treino ───────────────────────────────────────────
+
+function isWorkoutRequest(text: string): boolean {
+  const t = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return (
+    /\b(gera|gere|monta|monte|cria|crie|faz|faca|sugere|sugira|quero|preciso)\b/.test(t) &&
+    /\btreino\b/.test(t)
+  ) || /\b(me da|me de|cria|monta|gera)\b.*\btreino\b/.test(t)
+    || /\btreino.*\b(para|pra)\b.*\b(mim|eu|hoje)\b/.test(t);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseWorkoutFromResponse(raw: string): { cleanText: string; workout: ParsedWorkout | null } {
-  const match = raw.match(/\[TREINO_JSON\]([\s\S]*?)\[\/TREINO_JSON\]/);
-  if (!match) return { cleanText: raw.trim(), workout: null };
-  const cleanText = raw.replace(/\[TREINO_JSON\][\s\S]*?\[\/TREINO_JSON\]/g, '').trim();
-  try {
-    return { cleanText, workout: JSON.parse(match[1].trim()) as ParsedWorkout };
-  } catch {
-    return { cleanText, workout: null };
-  }
-}
 
 function buildGreeting(profile: any): Message {
   if (!profile) return { role: 'ai', text: 'Olá! Sou o GymCoach, seu personal trainer de IA. Como posso te ajudar hoje?' };
@@ -43,13 +44,13 @@ function buildGreeting(profile: any): Message {
     : profile.goal === 'fat_loss' ? 'perder gordura' : 'manter a forma';
   return {
     role: 'ai',
-    text: `Olá! Sou o GymCoach, seu personal trainer de IA. Vejo que seu objetivo é ${goalText} e você treina ${profile.trainingDays}x por semana. Posso te ajudar com dicas de treino, técnica, progressão ou até **montar um treino personalizado** pra você — é só pedir!`,
+    text: `Olá! Sou o GymCoach, seu personal trainer de IA.\n\nSeu objetivo é ${goalText} e você treina ${profile.trainingDays}x por semana. Posso te ajudar com dicas, técnica, progressão ou montar um treino personalizado — é só pedir!`,
   };
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 
-const TypingDots: React.FC = () => (
+const TypingDots: React.FC<{ label?: string }> = ({ label }) => (
   <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', px: 0.5, py: 0.3 }}>
     {[0, 1, 2].map(i => (
       <Box key={i} sx={{
@@ -62,6 +63,9 @@ const TypingDots: React.FC = () => (
         },
       }} />
     ))}
+    {label && (
+      <Typography sx={{ fontSize: 12, color: C.textMuted, ml: 0.5 }}>{label}</Typography>
+    )}
   </Box>
 );
 
@@ -85,8 +89,8 @@ const WorkoutSaveCard: React.FC<{ workout: ParsedWorkout; onSave: () => void }> 
   const diffColor = workout.difficulty === 'beginner' ? C.green
     : workout.difficulty === 'intermediate' ? C.yellow : C.orange;
 
-  const visible = workout.exercises.slice(0, 4);
-  const extra = workout.exercises.length - 4;
+  const visible = workout.exercises.slice(0, 5);
+  const extra = workout.exercises.length - 5;
 
   return (
     <Box sx={{ mt: 1.2, borderRadius: '14px', overflow: 'hidden', border: `1px solid ${C.greenBorder}`, bgcolor: C.card }}>
@@ -98,10 +102,10 @@ const WorkoutSaveCard: React.FC<{ workout: ParsedWorkout; onSave: () => void }> 
         borderBottom: `1px solid ${C.line}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 19, letterSpacing: 1, color: C.textPri, lineHeight: 1 }}>
+        <Typography sx={{ fontFamily: '"Bebas Neue"', fontSize: 19, letterSpacing: 1, color: C.textPri, lineHeight: 1, flex: 1, pr: 1 }}>
           {workout.name}
         </Typography>
-        <Box sx={{ px: 1, py: 0.3, borderRadius: '6px', bgcolor: `${diffColor}22`, border: `1px solid ${diffColor}55` }}>
+        <Box sx={{ px: 1, py: 0.3, borderRadius: '6px', bgcolor: `${diffColor}22`, border: `1px solid ${diffColor}55`, flexShrink: 0 }}>
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: diffColor, letterSpacing: 0.5 }}>{diffLabel}</Typography>
         </Box>
       </Box>
@@ -166,6 +170,15 @@ const WorkoutSaveCard: React.FC<{ workout: ParsedWorkout; onSave: () => void }> 
   );
 };
 
+// ─── Sugestões rápidas ────────────────────────────────────────────────────────
+
+const SUGGESTIONS = [
+  'Monta um treino de peito',
+  'Cria treino de pernas',
+  'Gera treino de costas e bíceps',
+  'Como melhorar minha postura?',
+];
+
 // ─── Tab principal ────────────────────────────────────────────────────────────
 
 export const ChatTab: React.FC = () => {
@@ -223,18 +236,39 @@ export const ChatTab: React.FC = () => {
     setWorkouts([...workouts, newWorkout]);
   }, [workouts, setWorkouts]);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
-    if (!text || loading || remaining <= 0) return;
-
-    const userMsg: Message = { role: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-
+  const consumeCredit = useCallback(() => {
     const newCount = dailyCount + 1;
     setDailyCount(newCount);
     localStorage.setItem(storageKey, String(newCount));
+    return newCount;
+  }, [dailyCount, storageKey]);
 
+  // ── Geração de treino via endpoint dedicado ──────────────────────────────
+  const generateWorkout = useCallback(async (text: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/generate-workout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: text, profile }),
+      });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      const workout = data.workout as ParsedWorkout;
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: `Aqui está o treino personalizado que montei para você! Revise os exercícios e salve quando estiver pronto.`,
+        workout,
+      }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'ai', text: 'Não consegui gerar o treino agora. Tente novamente em instantes!' }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  // ── Chat geral ───────────────────────────────────────────────────────────
+  const sendChat = useCallback(async (text: string) => {
     setLoading(true);
     try {
       const history = messages.slice(1).slice(-10).map(m => ({ role: m.role, text: m.text }));
@@ -245,20 +279,35 @@ export const ChatTab: React.FC = () => {
       });
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      const { cleanText, workout } = parseWorkoutFromResponse(data.text);
-      setMessages(prev => [...prev, { role: 'ai', text: cleanText, workout: workout ?? undefined }]);
+      setMessages(prev => [...prev, { role: 'ai', text: data.text }]);
     } catch {
       setMessages(prev => [...prev, { role: 'ai', text: 'Ops, tive um problema de conexão. Tente novamente!' }]);
     } finally {
       setLoading(false);
     }
-  }, [input, loading, remaining, dailyCount, messages, storageKey, userContext]);
+  }, [messages, userContext]);
+
+  const send = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
+    if (!text || loading || remaining <= 0) return;
+
+    setMessages(prev => [...prev, { role: 'user', text }]);
+    if (!overrideText) setInput('');
+    consumeCredit();
+
+    if (isWorkoutRequest(text)) {
+      await generateWorkout(text);
+    } else {
+      await sendChat(text);
+    }
+  }, [input, loading, remaining, consumeCredit, generateWorkout, sendChat]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
   const canSend = input.trim().length > 0 && !loading && remaining > 0;
+  const showSuggestions = messages.length <= 1 && !loading;
 
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: C.bg }}>
@@ -299,7 +348,34 @@ export const ChatTab: React.FC = () => {
       </Box>
 
       {/* ── Mensagens ──────────────────────────────────────────────────────── */}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', '::-webkit-scrollbar': { display: 'none' } }}>
+      <Box sx={{
+        flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2,
+        WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
+        '::-webkit-scrollbar': { display: 'none' },
+      }}>
+
+        {/* Sugestões rápidas */}
+        {showSuggestions && (
+          <Box sx={{ mb: 2 }}>
+            <Typography sx={{ fontSize: 11, color: C.textMuted, mb: 1, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>
+              Sugestões rápidas
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+              {SUGGESTIONS.map(s => (
+                <Box key={s} onClick={() => send(s)} sx={{
+                  px: 1.5, py: 0.7, borderRadius: '20px', cursor: 'pointer',
+                  bgcolor: C.cardHigh, border: `1px solid ${C.cardBorder}`,
+                  transition: 'all 0.15s',
+                  '&:hover': { borderColor: C.greenBorder, bgcolor: C.greenDim },
+                  '&:active': { transform: 'scale(0.97)' },
+                }}>
+                  <Typography sx={{ fontSize: 12, color: C.textSec, fontWeight: 500 }}>{s}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
+
         {messages.map((msg, i) => (
           <Box key={i} sx={{
             display: 'flex',
@@ -308,7 +384,7 @@ export const ChatTab: React.FC = () => {
             mb: 1.5,
           }}>
             {msg.role === 'ai' && <Box sx={{ mr: 1, mt: 0.3 }}><AiAvatar /></Box>}
-            <Box sx={{ maxWidth: '82%' }}>
+            <Box sx={{ maxWidth: '85%' }}>
               <Box sx={{
                 px: 2, py: 1.2,
                 borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px',
@@ -316,10 +392,11 @@ export const ChatTab: React.FC = () => {
                 border: msg.role === 'ai' ? `1px solid ${C.cardBorder}` : 'none',
               }}>
                 <Typography sx={{
-                  fontSize: 14, lineHeight: 1.6,
+                  fontSize: 14, lineHeight: 1.65,
                   color: msg.role === 'user' ? '#000' : C.textPri,
                   fontWeight: msg.role === 'user' ? 600 : 400,
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
                 }}>
                   {msg.text}
                 </Typography>
@@ -338,7 +415,7 @@ export const ChatTab: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1.5 }}>
             <Box sx={{ mr: 1, mt: 0.3 }}><AiAvatar /></Box>
             <Box sx={{ px: 2, py: 1.2, borderRadius: '4px 18px 18px 18px', bgcolor: C.cardHigh, border: `1px solid ${C.cardBorder}` }}>
-              <TypingDots />
+              <TypingDots label={isWorkoutRequest(messages[messages.length - 1]?.text ?? '') ? 'Montando treino...' : undefined} />
             </Box>
           </Box>
         )}
@@ -349,38 +426,40 @@ export const ChatTab: React.FC = () => {
       {remaining <= 0 ? (
         <Box sx={{ px: 2.5, py: 2.5, borderTop: `1px solid ${C.line}`, flexShrink: 0, textAlign: 'center' }}>
           <Typography sx={{ fontSize: 13, color: C.textSec, lineHeight: 1.6 }}>
-            Limite diário atingido.{'\n'}Volte amanhã para mais {DAILY_LIMIT} mensagens!
+            {`Limite diário atingido.\nVolte amanhã para mais ${DAILY_LIMIT} mensagens!`}
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ px: 2.5, py: 2, borderTop: `1px solid ${C.line}`, flexShrink: 0, display: 'flex', gap: 1.2, alignItems: 'center' }}>
-          <Box
-            component="input"
-            ref={inputRef}
-            value={input}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Pergunte ou peça um treino personalizado..."
-            disabled={loading}
-            sx={{
-              flex: 1, boxSizing: 'border-box',
-              bgcolor: C.cardHigh, border: `1px solid ${C.cardBorder}`, borderRadius: '14px',
-              color: C.textPri, fontSize: 14, px: 2, py: 1.4, outline: 'none',
-              fontFamily: '"DM Sans", Roboto, sans-serif', transition: 'border-color 0.2s',
-              '&::placeholder': { color: C.textMuted },
-              '&:focus': { borderColor: C.greenBorder },
-            }}
-          />
-          <Box onClick={canSend ? send : undefined} sx={{
-            width: 44, height: 44, borderRadius: '14px', flexShrink: 0,
-            background: canSend ? `linear-gradient(135deg, ${C.greenDark}, ${C.green})` : C.cardHigh,
-            border: `1px solid ${canSend ? 'transparent' : C.cardBorder}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: canSend ? 'pointer' : 'default', transition: 'all 0.2s',
-            '&:hover': canSend ? { filter: 'brightness(1.1)' } : {},
-            '&:active': canSend ? { transform: 'scale(0.94)' } : {},
-          }}>
-            <Send sx={{ fontSize: 17, color: canSend ? '#000' : C.textMuted }} />
+        <Box sx={{ px: 2, py: 1.5, borderTop: `1px solid ${C.line}`, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Box
+              component="input"
+              ref={inputRef}
+              value={input}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Pergunte ou peça um treino..."
+              disabled={loading}
+              sx={{
+                flex: 1, boxSizing: 'border-box',
+                bgcolor: C.cardHigh, border: `1px solid ${C.cardBorder}`, borderRadius: '14px',
+                color: C.textPri, fontSize: 14, px: 2, py: 1.4, outline: 'none',
+                fontFamily: '"DM Sans", Roboto, sans-serif', transition: 'border-color 0.2s',
+                '&::placeholder': { color: C.textMuted },
+                '&:focus': { borderColor: C.greenBorder },
+              }}
+            />
+            <Box onClick={canSend ? () => send() : undefined} sx={{
+              width: 44, height: 44, borderRadius: '14px', flexShrink: 0,
+              background: canSend ? `linear-gradient(135deg, ${C.greenDark}, ${C.green})` : C.cardHigh,
+              border: `1px solid ${canSend ? 'transparent' : C.cardBorder}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: canSend ? 'pointer' : 'default', transition: 'all 0.2s',
+              '&:hover': canSend ? { filter: 'brightness(1.1)' } : {},
+              '&:active': canSend ? { transform: 'scale(0.94)' } : {},
+            }}>
+              <Send sx={{ fontSize: 17, color: canSend ? '#000' : C.textMuted }} />
+            </Box>
           </Box>
         </Box>
       )}

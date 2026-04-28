@@ -182,7 +182,7 @@ const SUGGESTIONS = [
 // ─── Tab principal ────────────────────────────────────────────────────────────
 
 export const ChatTab: React.FC = () => {
-  const { profile, workouts, workoutActivities, setWorkouts } = useUserData();
+  const { profile, workouts, workoutActivities, addWorkout } = useUserData();
   const { currentUser } = useAuth();
 
   const [messages, setMessages] = useState<Message[]>(() => [buildGreeting(profile)]);
@@ -233,8 +233,8 @@ export const ChatTab: React.FC = () => {
         id: `ai_ex_${i}_${ts}`,
       })),
     };
-    setWorkouts([...workouts, newWorkout]);
-  }, [workouts, setWorkouts]);
+    addWorkout(newWorkout);
+  }, [addWorkout]);
 
   const consumeCredit = useCallback(() => {
     const newCount = dailyCount + 1;

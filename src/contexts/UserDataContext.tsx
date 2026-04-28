@@ -9,6 +9,7 @@ interface UserDataContextType {
   setProfile: (p: UserProfile | null) => void;
   workouts: Workout[];
   setWorkouts: (w: Workout[]) => void;
+  addWorkout: (w: Workout) => void;
   saveProfileAndWorkouts: (p: UserProfile, w: Workout[]) => void;
   exerciseLogs: Record<string, ExerciseSession[]>;
   setExerciseLog: (exerciseId: string, sessions: ExerciseSession[]) => void;
@@ -122,6 +123,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser) persistWorkouts(w, currentUser.uid);
   }, [currentUser, persistWorkouts]);
 
+  const addWorkout = useCallback((workout: Workout) => {
+    setWorkoutsState(prev => {
+      const updated = [...prev, workout];
+      if (currentUser) persistWorkouts(updated, currentUser.uid);
+      return updated;
+    });
+  }, [currentUser, persistWorkouts]);
+
   // ── Atualiza perfil + treinos em uma única renderização ──────────────────────
   const saveProfileAndWorkouts = useCallback((p: UserProfile, w: Workout[]) => {
     setProfileState(p);
@@ -206,7 +215,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <UserDataContext.Provider value={{
-      profile, setProfile, workouts, setWorkouts, saveProfileAndWorkouts,
+      profile, setProfile, workouts, setWorkouts, addWorkout, saveProfileAndWorkouts,
       exerciseLogs, setExerciseLog, dataLoading,
       workoutActivities, activeWorkout, startWorkout, finishWorkout, cancelWorkout,
       addActivity, removeActivity,

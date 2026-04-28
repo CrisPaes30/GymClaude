@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography } from '@mui/material';
-import { SmartToy, Send, FitnessCenter, AccessTime, Check, AutoAwesome } from '@mui/icons-material';
+import { SmartToy, Send, FitnessCenter, AccessTime, Check } from '@mui/icons-material';
 import { useUserData } from '../../contexts/UserDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { C } from '../../theme/tokens';

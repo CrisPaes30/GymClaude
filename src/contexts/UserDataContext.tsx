@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, Workout, ExerciseSession, WorkoutActivity, ActiveWorkout } from '../types';
 import { useAuth } from './AuthContext';
+import { WorkoutGenerator } from '../utils/workoutGenerator';
 
 interface UserDataContextType {
   profile: UserProfile | null;
@@ -72,6 +73,15 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
           const lsWorkouts = localStorage.getItem(`workouts_${uid}`);
           if (lsWorkouts) loadedWorkouts = JSON.parse(lsWorkouts);
         }
+
+        // Inicializa com treinos gerados APENAS aqui, após confirmar que Firebase está vazio
+        if (loadedWorkouts.length === 0 && loadedProfile) {
+          const generated = WorkoutGenerator.getWorkoutPlan(loadedProfile);
+          loadedWorkouts = generated;
+          setDoc(doc(db, 'users', uid, 'meta', 'workouts'), { list: generated })
+            .catch(err => console.error('Erro ao inicializar treinos:', err));
+        }
+
         setWorkoutsState(loadedWorkouts);
 
         const logsSnap = await getDocs(collection(db, 'users', uid, 'logs'));

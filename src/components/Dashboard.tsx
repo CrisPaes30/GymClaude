@@ -197,7 +197,7 @@ const ExerciseDetail: React.FC<{ exercise: Exercise; onClose: () => void }> = ({
 
 // ─── Dashboard principal ──────────────────────────────────────────────────────
 export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
-  const { workouts: savedWorkouts, setWorkouts: saveWorkouts, exerciseLogs, activeWorkout, startWorkout, finishWorkout, cancelWorkout, dataLoading } = useUserData();
+  const { workouts: savedWorkouts, setWorkouts: saveWorkouts, exerciseLogs, activeWorkout, startWorkout, finishWorkout, cancelWorkout } = useUserData();
 
   const generated = useMemo(() => WorkoutGenerator.getWorkoutPlan(userProfile), [userProfile]);
   const workouts: Workout[] = savedWorkouts.length > 0 ? savedWorkouts : generated;
@@ -261,10 +261,6 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
 
   const addCustomWorkout = (workout: Workout) => { setWorkouts([...workouts, workout]); };
 
-  // Inicializa plano no Firestore na primeira vez (somente após o carregamento confirmar que não há treinos)
-  useEffect(() => {
-    if (!dataLoading && savedWorkouts.length === 0 && generated.length > 0) saveWorkouts(generated);
-  }, [dataLoading, savedWorkouts.length, generated, saveWorkouts]);
 
   // ── Nav tabs ───────────────────────────────────────────────────────────────
   const navTabs = [

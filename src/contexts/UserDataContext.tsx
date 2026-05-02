@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { UserProfile, Workout, ExerciseSession, WorkoutActivity, ActiveWorkout } from '../types';
 import { useAuth } from './AuthContext';
 import { WorkoutGenerator } from '../utils/workoutGenerator';
+import { resolveExerciseId, isLegacyAiExerciseId } from '../utils/exerciseIdResolver';
 
 interface UserDataContextType {
   profile: UserProfile | null;
@@ -80,6 +81,25 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
           loadedWorkouts = generated;
           setDoc(doc(db, 'users', uid, 'meta', 'workouts'), { list: generated })
             .catch(err => console.error('Erro ao inicializar treinos:', err));
+        }
+
+        // Migra IDs antigos de exercícios gerados pela IA (ai_ex_N_timestamp → IDs resolvidos)
+        let needsMigration = false;
+        const migrated = loadedWorkouts.map(workout => {
+          if (!workout.id.startsWith('custom-ai-')) return workout;
+          const newExercises = workout.exercises.map(ex => {
+            if (!isLegacyAiExerciseId(ex.id)) return ex;
+            const resolved = resolveExerciseId(ex.name, ex.id);
+            if (resolved === ex.id) return ex;
+            needsMigration = true;
+            return { ...ex, id: resolved };
+          });
+          return { ...workout, exercises: newExercises };
+        });
+        if (needsMigration) {
+          loadedWorkouts = migrated;
+          setDoc(doc(db, 'users', uid, 'meta', 'workouts'), { list: migrated })
+            .catch(err => console.error('Erro ao migrar IDs de exercícios:', err));
         }
 
         setWorkoutsState(loadedWorkouts);

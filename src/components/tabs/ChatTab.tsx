@@ -5,7 +5,7 @@ import { useUserData } from '../../contexts/UserDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { C } from '../../theme/tokens';
 import { Workout, Exercise } from '../../types';
-import { exercisesDatabase } from '../../data/exercises';
+import { resolveExerciseId } from '../../utils/exerciseIdResolver';
 
 const DAILY_LIMIT = 20;
 const WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas em ms
@@ -36,28 +36,6 @@ function formatCountdown(ms: number): string {
   return `${s}s`;
 }
 
-// Normaliza string removendo acentos, pontuação e caixa para comparação
-function norm(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
-}
-
-// Tenta casar o nome do exercício com o banco local para obter um ID que a ExerciseDB reconheça.
-// Sem match: gera kebab-case do nome como fallback.
-function resolveExerciseId(name: string, fallback: string): string {
-  const target = norm(name);
-  // Exact match
-  const exact = exercisesDatabase.find(ex => norm(ex.name) === target);
-  if (exact) return exact.id;
-  // Partial match: DB name contains the AI name or vice versa
-  const partial = exercisesDatabase.find(ex => {
-    const n = norm(ex.name);
-    return n.includes(target) || target.includes(n);
-  });
-  if (partial) return partial.id;
-  // Fallback: kebab-case do nome (melhor que timestamp)
-  const slug = target.replace(/\s+/g, '-');
-  return slug || fallback;
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

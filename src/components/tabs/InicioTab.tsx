@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Avatar, IconButton } from '@mui/material';
-import { NotificationsNone, FitnessCenter, LocalFireDepartment, DirectionsRun, PlayArrow } from '@mui/icons-material';
+import { NotificationsNone, FitnessCenter, LocalFireDepartment, DirectionsRun, PlayArrow, SmartToy, AccessTime } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserData } from '../../contexts/UserDataContext';
 import { useWorkoutStats } from '../../hooks/useWorkoutStats';
@@ -107,7 +107,7 @@ const WeekStrip: React.FC = () => {
 interface Props {
   onResetProfile: () => void;
   workouts: Workout[];
-  onGoToTreinos: () => void;
+  onGoToTreinos: (dayIndex?: number) => void;
 }
 
 export const InicioTab: React.FC<Props> = ({ onResetProfile, workouts, onGoToTreinos }) => {
@@ -128,6 +128,10 @@ export const InicioTab: React.FC<Props> = ({ onResetProfile, workouts, onGoToTre
 
   const nextWorkout = workouts[0];
   const thumbSrc    = nextWorkout ? getExerciseThumbnail(nextWorkout.muscleGroups ?? []) : '';
+
+  const aiWorkouts = workouts
+    .map((w, i) => ({ workout: w, index: i }))
+    .filter(({ workout }) => workout.id.startsWith('custom-ai-'));
 
   return (
     <Box sx={{ flex: 1, overflowY: 'auto', '::-webkit-scrollbar': { display: 'none' } }}>
@@ -193,7 +197,7 @@ export const InicioTab: React.FC<Props> = ({ onResetProfile, workouts, onGoToTre
 
       {/* ── Próximo treino ─────────────────────────────────────────────────── */}
       {nextWorkout && (
-        <Box onClick={onGoToTreinos} sx={{
+        <Box onClick={() => onGoToTreinos(0)} sx={{
           mx: 2.5, mb: 2, p: 2.2, borderRadius: '20px',
           background: `linear-gradient(145deg, rgba(74,222,128,0.07) 0%, ${C.card} 70%)`,
           border: `1px solid rgba(74,222,128,0.18)`,
@@ -229,6 +233,58 @@ export const InicioTab: React.FC<Props> = ({ onResetProfile, workouts, onGoToTre
           >
             <PlayArrow sx={{ fontSize: 18, color: '#000' }} />
             <Typography sx={{ fontSize: 14, fontWeight: 800, color: '#000', letterSpacing: 0.2 }}>Começar agora</Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* ── Treinos da IA ─────────────────────────────────────────────────── */}
+      {aiWorkouts.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ px: 2.5, mb: 1.2, display: 'flex', alignItems: 'center', gap: 0.8 }}>
+            <SmartToy sx={{ fontSize: 14, color: C.green }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              Treinos da IA
+            </Typography>
+          </Box>
+          <Box sx={{ pl: 2.5, display: 'flex', gap: 1.2, overflowX: 'auto', pr: 2.5, '::-webkit-scrollbar': { display: 'none' } }}>
+            {aiWorkouts.map(({ workout, index }) => {
+              const diffLabel = workout.difficulty === 'beginner' ? 'Iniciante' : workout.difficulty === 'intermediate' ? 'Intermediário' : 'Avançado';
+              return (
+                <Box
+                  key={workout.id}
+                  onClick={() => onGoToTreinos(index)}
+                  sx={{
+                    flexShrink: 0, width: 190, p: 1.8, borderRadius: '16px', cursor: 'pointer',
+                    background: `linear-gradient(145deg, rgba(74,222,128,0.09) 0%, ${C.card} 100%)`,
+                    border: `1px solid rgba(74,222,128,0.2)`,
+                    transition: 'all 0.2s',
+                    '&:hover': { border: `1px solid ${C.green}`, boxShadow: `0 4px 18px rgba(74,222,128,0.18)` },
+                    '&:active': { transform: 'scale(0.97)' },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mb: 0.8 }}>
+                    <Box sx={{ px: 0.9, py: 0.25, borderRadius: '6px', bgcolor: 'rgba(74,222,128,0.15)', border: `1px solid rgba(74,222,128,0.3)` }}>
+                      <Typography sx={{ fontSize: 9, fontWeight: 800, color: C.green, letterSpacing: 0.5 }}>IA</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: 10, color: C.textMuted, fontWeight: 600 }}>{diffLabel}</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800, color: C.textPri, lineHeight: 1.25, mb: 0.8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {workout.name}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                    <AccessTime sx={{ fontSize: 11, color: C.textMuted }} />
+                    <Typography sx={{ fontSize: 11, color: C.textSec }}>{workout.estimatedDuration} min · {workout.exercises.length} exercícios</Typography>
+                  </Box>
+                  <Box sx={{
+                    py: 0.9, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.6,
+                    background: `linear-gradient(135deg, ${C.greenDark}, ${C.green})`,
+                  }}>
+                    <PlayArrow sx={{ fontSize: 13, color: '#000' }} />
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#000' }}>Iniciar</Typography>
+                  </Box>
+                </Box>
+              );
+            })}
           </Box>
         </Box>
       )}

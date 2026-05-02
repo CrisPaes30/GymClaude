@@ -279,7 +279,7 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
         <InicioTab
           onResetProfile={onResetProfile}
           workouts={workouts}
-          onGoToTreinos={() => setActiveTab('treinos')}
+          onGoToTreinos={(dayIndex) => { setActiveDay(dayIndex ?? 0); setActiveTab('treinos'); }}
         />
       )}
       {activeTab === 'treinos' && (

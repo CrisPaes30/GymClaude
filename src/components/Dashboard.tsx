@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Box, Typography, IconButton, Chip,
+  Box, Typography, IconButton, Chip, Button,
   Dialog, DialogContent, Slide, TextField
 } from '@mui/material';
 import {
@@ -211,6 +211,17 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   const [editingDay,      setEditingDay]      = useState<number | null>(null);
   const [confirmReset,    setConfirmReset]    = useState(false);
   const [creatingWorkout, setCreatingWorkout] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  // Ref para o handler de back button (evita stale closure sem re-registrar o listener)
+  const navRef = useRef({
+    selectedExercise: null as Exercise | null,
+    editingDay: null as number | null,
+    creatingWorkout: false,
+    confirmReset: false,
+    activeTab: 'inicio' as Tab,
+  });
+  navRef.current = { selectedExercise, editingDay, creatingWorkout, confirmReset, activeTab };
 
   const currentWorkout = workouts[activeDay];
 
@@ -231,6 +242,27 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
   };
 
   const isCurrentWorkoutActive = activeWorkout?.workoutId === currentWorkout?.id;
+
+  // ── Intercepta botão voltar (Android / browser) ────────────────────────────
+  useEffect(() => {
+    window.history.pushState({ gymapp: true }, '');
+
+    const handlePop = () => {
+      // Sempre re-empurra um estado para "absorver" o back sem sair do app
+      window.history.pushState({ gymapp: true }, '');
+
+      const s = navRef.current;
+      if (s.selectedExercise)    { setSelectedExercise(null);    return; }
+      if (s.editingDay !== null)  { setEditingDay(null);          return; }
+      if (s.creatingWorkout)      { setCreatingWorkout(false);    return; }
+      if (s.confirmReset)         { setConfirmReset(false);       return; }
+      if (s.activeTab !== 'inicio') { setActiveTab('inicio');     return; }
+      setShowExitConfirm(true);
+    };
+
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
 
   const handleStartWorkout = () => { if (currentWorkout) startWorkout(currentWorkout); };
   const handleFinishWorkout = () => { finishWorkout(); setActiveTab('progresso'); };
@@ -352,6 +384,36 @@ export const Dashboard: React.FC<Props> = ({ userProfile, onResetProfile }) => {
       {creatingWorkout && (
         <CreateWorkoutDialog onSave={addCustomWorkout} onClose={() => setCreatingWorkout(false)} />
       )}
+
+      {/* ── Confirmação de saída ─────────────────────────────────────────── */}
+      <Dialog
+        open={showExitConfirm}
+        onClose={() => setShowExitConfirm(false)}
+        slotProps={{ paper: { sx: { bgcolor: C.card, borderRadius: 3, border: `1px solid ${C.cardBorder}`, mx: 3 } } }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography sx={{ fontSize: 18, fontWeight: 700, color: C.textPri, mb: 1 }}>Sair do app?</Typography>
+          <Typography sx={{ fontSize: 14, color: C.textSec, mb: 3 }}>
+            Tem certeza que deseja fechar o aplicativo?
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
+            <Button
+              onClick={() => setShowExitConfirm(false)}
+              variant="outlined"
+              sx={{ color: C.textSec, borderColor: C.cardBorder, borderRadius: 2, textTransform: 'none' }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => { setShowExitConfirm(false); window.close(); }}
+              variant="contained"
+              sx={{ bgcolor: C.green, color: '#000', borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: '#22C55E' } }}
+            >
+              Sair
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Box>
   );
 };

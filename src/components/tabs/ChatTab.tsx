@@ -5,8 +5,59 @@ import { useUserData } from '../../contexts/UserDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { C } from '../../theme/tokens';
 import { Workout, Exercise } from '../../types';
+import { exercisesDatabase } from '../../data/exercises';
 
 const DAILY_LIMIT = 20;
+const WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas em ms
+
+interface CreditState { count: number; startTime: number; }
+
+function loadCredits(uid: string): CreditState {
+  try {
+    const raw = localStorage.getItem(`treinaai_credits_${uid}`);
+    if (!raw) return { count: 0, startTime: Date.now() };
+    const data = JSON.parse(raw) as CreditState;
+    if (Date.now() - data.startTime >= WINDOW_MS) return { count: 0, startTime: Date.now() };
+    return data;
+  } catch { return { count: 0, startTime: Date.now() }; }
+}
+
+function saveCredits(uid: string, state: CreditState) {
+  localStorage.setItem(`treinaai_credits_${uid}`, JSON.stringify(state));
+}
+
+function formatCountdown(ms: number): string {
+  const totalSec = Math.ceil(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}min`;
+  if (m > 0) return `${m}min ${s.toString().padStart(2, '0')}s`;
+  return `${s}s`;
+}
+
+// Normaliza string removendo acentos, pontuação e caixa para comparação
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
+}
+
+// Tenta casar o nome do exercício com o banco local para obter um ID que a ExerciseDB reconheça.
+// Sem match: gera kebab-case do nome como fallback.
+function resolveExerciseId(name: string, fallback: string): string {
+  const target = norm(name);
+  // Exact match
+  const exact = exercisesDatabase.find(ex => norm(ex.name) === target);
+  if (exact) return exact.id;
+  // Partial match: DB name contains the AI name or vice versa
+  const partial = exercisesDatabase.find(ex => {
+    const n = norm(ex.name);
+    return n.includes(target) || target.includes(n);
+  });
+  if (partial) return partial.id;
+  // Fallback: kebab-case do nome (melhor que timestamp)
+  const slug = target.replace(/\s+/g, '-');
+  return slug || fallback;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,19 +239,35 @@ export const ChatTab: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(() => [buildGreeting(profile)]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dailyCount, setDailyCount] = useState(0);
+  const uid = currentUser?.uid ?? 'anon';
+  const [credits, setCredits] = useState<CreditState>(() => loadCredits(uid));
+  const [now, setNow] = useState(Date.now());
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const today = new Date().toISOString().split('T')[0];
-  const storageKey = `treinaai_ai_${currentUser?.uid ?? 'anon'}_${today}`;
-  const remaining = DAILY_LIMIT - dailyCount;
+  const remaining = DAILY_LIMIT - credits.count;
+  const msUntilReset = Math.max(0, WINDOW_MS - (now - credits.startTime));
 
+  // Carrega créditos quando uid muda (troca de conta)
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey);
-    setDailyCount(stored ? parseInt(stored, 10) : 0);
-  }, [storageKey]);
+    setCredits(loadCredits(uid));
+  }, [uid]);
+
+  // Tick para atualizar o countdown e checar reset automático
+  useEffect(() => {
+    if (remaining > 0) return;
+    const interval = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t - credits.startTime >= WINDOW_MS) {
+        const fresh = { count: 0, startTime: t };
+        setCredits(fresh);
+        saveCredits(uid, fresh);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [remaining, credits.startTime, uid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -230,18 +297,18 @@ export const ChatTab: React.FC = () => {
       estimatedDuration: workout.estimatedDuration,
       exercises: workout.exercises.map((ex, i) => ({
         ...(ex as Exercise),
-        id: `ai_ex_${i}_${ts}`,
+        id: resolveExerciseId(ex.name, `ai_ex_${i}_${ts}`),
       })),
     };
     addWorkout(newWorkout);
   }, [addWorkout]);
 
   const consumeCredit = useCallback(() => {
-    const newCount = dailyCount + 1;
-    setDailyCount(newCount);
-    localStorage.setItem(storageKey, String(newCount));
-    return newCount;
-  }, [dailyCount, storageKey]);
+    const updated: CreditState = { count: credits.count + 1, startTime: credits.startTime };
+    setCredits(updated);
+    saveCredits(uid, updated);
+    return updated.count;
+  }, [credits, uid]);
 
   // ── Geração de treino via endpoint dedicado ──────────────────────────────
   const generateWorkout = useCallback(async (text: string) => {
@@ -342,7 +409,7 @@ export const ChatTab: React.FC = () => {
           border: `1px solid ${remaining > 5 ? C.greenBorder : remaining > 0 ? 'rgba(251,191,36,0.3)' : C.redBorder}`,
         }}>
           <Typography sx={{ fontSize: 11, fontWeight: 700, color: remaining > 5 ? C.green : remaining > 0 ? C.yellow : C.red }}>
-            {remaining}/{DAILY_LIMIT} hoje
+            {remaining}/{DAILY_LIMIT} restantes
           </Typography>
         </Box>
       </Box>
@@ -425,8 +492,13 @@ export const ChatTab: React.FC = () => {
       {/* ── Input ──────────────────────────────────────────────────────────── */}
       {remaining <= 0 ? (
         <Box sx={{ px: 2.5, py: 2.5, borderTop: `1px solid ${C.line}`, flexShrink: 0, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 13, color: C.textSec, lineHeight: 1.6 }}>
-            {`Limite diário atingido.\nVolte amanhã para mais ${DAILY_LIMIT} mensagens!`}
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: C.red, mb: 0.5 }}>
+            Limite de {DAILY_LIMIT} mensagens atingido
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: C.textSec }}>
+            {msUntilReset > 0
+              ? `Disponível novamente em ${formatCountdown(msUntilReset)}`
+              : 'Recarregando...'}
           </Typography>
         </Box>
       ) : (
